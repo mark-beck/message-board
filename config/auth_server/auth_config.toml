@@ -1,0 +1,18 @@
+[mail]
+sender = "noreply@localhost"
+server = "mail-sender"
+
+[db]
+address = "mongo"
+port = "27017"
+user = "admin"
+password = "admin"
+
+[default_user]
+name = "admin"
+pass = "admin"
+create = true
+
+[jwt_config]
+path = ["./cert/jwt.private.pem", "./cert/jwt.public.pem"]
+secret = "abc"

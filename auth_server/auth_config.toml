@@ -1,0 +1,17 @@
+[mail]
+sender = "noreply@localhost"
+server = "localhost"
+
+[db]
+address = "localhost"
+port = "27017"
+user = "admin"
+password = "admin"
+
+[default_user]
+name = "admin"
+pass = "admin"
+create = true
+
+[jwt_config]
+path = ["./cert/jwt.private.pem", "./cert/jwt.public.pem"]
