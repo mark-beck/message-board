@@ -2,6 +2,7 @@ import axios from "axios";
 import authHeader from "./auth-header";
 
 const API_URL = "https://localhost/admin";
+const C_URL = "https://localhost";
 
 
 const getUsers = () => {
@@ -42,7 +43,21 @@ const deleteUser = (name) => {
 }
 
 const getPublicContent = () => {
-    return "Public Content";
+    console.log("getting content");
+    let posts = [];
+    let c = 0;
+    
+    let post = await axios.get(C_URL + "/latest/" + c);
+
+    while (post != null) {
+        c += 1
+        posts = posts.append(post);
+        post = await axios.get(C_URL + "/latest/" + c);
+    }
+
+    return posts
+
+    
 };
 
 
