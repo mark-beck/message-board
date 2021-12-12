@@ -2,7 +2,7 @@ import axios from "axios";
 import authHeader from "./auth-header";
 
 const API_URL = "https://localhost/admin";
-const C_URL = "https://localhost";
+const C_URL = "https://localhost/content";
 
 
 const getUsers = () => {
@@ -39,26 +39,38 @@ const createUser = (name, email, password, user, moderator, admin) => {
 
 const deleteUser = (name) => {
     console.log("deleteUser called");
-    return axios.delete(API_URL + "/delete_user/" + name, { headers: authHeader() });
+    return axios.delete(API_URL + "/delete_user" + name, { headers: authHeader() });
 }
 
-const getPublicContent = () => {
+export async function getPublicContent() {
     console.log("getting content");
-    let posts = [];
+    let posts = new Array(0);
     let c = 0;
-    
-    let post = await axios.get(C_URL + "/latest/" + c);
 
-    while (post != null) {
+    console.log("typeof posts " + typeof posts)
+    
+    let post = await axios.get(C_URL + "/latest/" + c, { headers: authHeader() });
+
+    while (post.data != "null") {
         c += 1
-        posts = posts.append(post);
-        post = await axios.get(C_URL + "/latest/" + c);
+        posts.push(post.data);
+        post = await axios.get(C_URL + "/latest/" + c, { headers: authHeader() });
     }
 
     return posts
 
     
 };
+
+export async function postContent(author, text, date) {
+    const post = {
+        author: author,
+        text: text,
+        date: date
+    }
+
+    return axios.post(C_URL + "/add", post, { headers: authHeader() });
+}
 
 
 
@@ -67,4 +79,5 @@ export default {
     createUser,
     deleteUser,
     getPublicContent,
+    postContent,
 };

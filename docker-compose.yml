@@ -11,6 +11,7 @@ services:
       - --entryPoints.websecure.address=:443
       - --entrypoints.web.http.redirections.entrypoint.to=websecure # redirect http to https
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      
     ports:
       - "80:80"
       - "443:443"
@@ -20,30 +21,31 @@ services:
       # So that Traefik can listen to the Docker events
       - /var/run/docker.sock:/var/run/docker.sock
       - ./config/traefik/:/etc/traefik/dynamic/
-      - ../cert/:/etc/certs/
+      - ./cert/:/etc/certs/
 
   content_service:
     image: content_service:latest
     build:
       context: content-service
       dockerfile: Dockerfile
-    container_name: content_service
+    volumes:
+      - ./cert/jwt.public.pem:/etc/certs/jwt.public.pem:r
     labels:
-      - "traefik.http.routers.auth.rule=Host(`localhost`) && PathPrefix(`/content`)"
-      - "traefik.http.services.auth.loadbalancer.server.scheme=http"
-      - "traefik.http.services.auth.loadbalancer.server.port=8080"
-      - "traefik.http.routers.auth.entrypoints=websecure"
-      - "traefik.http.routers.auth.tls=true"
+      - "traefik.http.routers.content.rule=Host(`localhost`) && PathPrefix(`/content`)"
+      - "traefik.http.services.content.loadbalancer.server.scheme=http"
+      - "traefik.http.services.content.loadbalancer.server.port=8080"
+      - "traefik.http.routers.content.entrypoints=websecure"
+      - "traefik.http.routers.content.tls=true"
+      
 
   auth_server:
     image: auth_server:latest
     build: 
         context: auth_server
         dockerfile: Dockerfile
-    container_name: auth_server
     volumes:
       - ./config/auth_server/auth_config.toml:/server/auth_config.toml:rw
-      - ../cert/:/server/cert/
+      - ./cert/:/server/cert/
     depends_on:
       - mongo
       - mail-sender
@@ -61,7 +63,6 @@ services:
     build: 
         context: client
         dockerfile: Dockerfile
-    container_name: admin_panel
     labels:
       - "traefik.http.routers.panel.rule=Host(`localhost`)"
       - "traefik.http.services.panel.loadbalancer.server.scheme=http"
@@ -71,31 +72,31 @@ services:
 
   mongo:
     image: mongo:latest
-    container_name: mongo
+    ports:
+      - "27017:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: admin
 
   mail-sender:
     image: tozd/postfix:alpine-312
-    container_name: mail-sender
     privileged: true
     volumes:
       - ./config/postfix/init:/etc/service/postfix/run.initialization:rw
 
 
-  # mongo-express:
-  #   image: mongo-express:latest
-  #   container_name: mongo-express
-  #   ports:
-  #     - "8081:8081"
-  #   environment:
-  #     ME_CONFIG_MONGODB_ADMINUSERNAME: admin
-  #     ME_CONFIG_MONGODB_ADMINPASSWORD: admin
-  #     ME_CONFIG_MONGODB_SERVER: mongo
-  #     ME_CONFIG_MONGODB_PORT: "27017"
-  #     ME_CONFIG_BASICAUTH_USERNAME: admin
-  #     ME_CONFIG_BASICAUTH_PASSWORD: admin
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mongo-express
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: admin
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_MONGODB_PORT: "27017"
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin
 
 
   
