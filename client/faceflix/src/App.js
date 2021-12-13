@@ -122,7 +122,7 @@ const App = () => {
                         <Route exact path="/home" element={<Home />} />
                         <Route exact path="/login" element={<Login />} />
 
-                        <Route path="/user" render={(props) => <BoardUser {...props} addToast={addToast} />} />
+                        <Route path="/user" element={<BoardUser />} />
 
                     </Routes>
                

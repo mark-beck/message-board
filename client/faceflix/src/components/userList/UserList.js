@@ -13,13 +13,8 @@ const UserList = (props) => {
         setUserList(props.userlist);
     }, [props.userlist]);
 
-    const handleDelete = (name, addToast) => {
+    const handleDelete = (name) => {
         userService.deleteUser(name).then(() => {
-            addToast({
-                show: true,
-                title: "Success",
-                text: "User deleted",
-            });
             props.reload_list()
         });
     }
@@ -32,7 +27,7 @@ const UserList = (props) => {
                 <td>{data.email}</td>
                 <td>{data.roles.join(",")}</td>
                 <td>
-                    <Button onClick={() => handleDelete(data.name, props.addToast)}>
+                    <Button onClick={() => handleDelete(data.name)}>
                         delete
                     </Button>
                 </td>

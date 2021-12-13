@@ -13,9 +13,8 @@ const CreateForm = (props) => {
 
     const handleCreate = () => {
         
-        console.log("author: " + author);
         console.log("text: " + text);
-        userService.postContent(author, text, date).then(() => props.reload_posts());
+        userService.postContent(text).then(() => props.reload_posts());
         handleClose();
     }
 
@@ -30,28 +29,12 @@ const CreateForm = (props) => {
             </Modal.Header>
             <Modal.Body>
                 <Form>
-                    <Form.Group className="mb-3" controlId="createForm.author">
-                        <Form.Label>author</Form.Label>
-                        <Form.Control
-                            type="text"
-                            value={author}
-                            onChange={(e) => setAuthor(e.target.value)}
-                        />
-                    </Form.Group>
                     <Form.Group className="mb-3" controlId="createForm.text">
                         <Form.Label>text</Form.Label>
                         <Form.Control
                             type="text"
                             value={text}
                             onChange={(e) => setText(e.target.value)}
-                        />
-                    </Form.Group>
-                    <Form.Group className="mb-3" controlId="createForm.date">
-                        <Form.Label>date</Form.Label>
-                        <Form.Control
-                            type="text"
-                            value={date}
-                            onChange={(e) => setDate(e.target.value)}
                         />
                     </Form.Group>
                 </Form>

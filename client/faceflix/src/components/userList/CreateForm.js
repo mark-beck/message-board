@@ -59,7 +59,7 @@ const CreateForm = (props) => {
                     <Form.Group className="mb-3" controlId="createForm.password">
                         <Form.Label>email</Form.Label>
                         <Form.Control
-                            type="email"
+                            type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                         />

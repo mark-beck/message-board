@@ -62,11 +62,13 @@ export async function getPublicContent() {
     
 };
 
-export async function postContent(author, text, date) {
+export async function postContent(text) {
+    let author = JSON.parse(localStorage.getItem("user")).user.name
+    console.log("User:: " + author)
     const post = {
         author: author,
         text: text,
-        date: date
+        date: ""
     }
 
     return axios.post(C_URL + "/add", post, { headers: authHeader() });

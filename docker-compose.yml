@@ -58,8 +58,8 @@ services:
       - "traefik.http.routers.auth.entrypoints=websecure"
       - "traefik.http.routers.auth.tls=true"
 
-  admin_panel:
-    image: admin_panel:latest
+  client:
+    image: client:latest
     build: 
         context: client
         dockerfile: Dockerfile

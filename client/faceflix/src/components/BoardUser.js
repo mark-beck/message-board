@@ -14,7 +14,7 @@ const BoardUser = (props) => {
         console.log("reloading")
         UserService.getUsers().then(
             (response) => {
-                setContent(<UserList userlist={response.data} reload_list={reload_list} addToast={props.addToast} />);
+                setContent(<UserList userlist={response.data} reload_list={reload_list} />);
             },
             (error) => {
                 const _content =
@@ -32,7 +32,7 @@ const BoardUser = (props) => {
     useEffect(() => {
         UserService.getUsers().then(
             (response) => {
-                setContent(<UserList userlist={response.data} reload_list={reload_list} addToast={props.addToast} />);
+                setContent(<UserList userlist={response.data} reload_list={reload_list} />);
             },
             (error) => {
                 const _content =

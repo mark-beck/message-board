@@ -5,11 +5,13 @@ import { MDBCard, MDBCardBody, MDBRow, MDBCardTitle, MDBCardText, MDBBtn, MDBIco
 const Post = (props) => {
     const [author, setAuthor] = useState(props.author)
     const [text, setText] = useState(props.text)
+    const [date, setDate] = useState(props.date)
 
     useEffect(() => {
         setAuthor(props.author)
         setText(props.text)
-    }, [props.author, props.text]);
+        setDate(props.date)
+    }, [props.author, props.text, props.date]);
 
     return (
         <MDBCard
@@ -32,6 +34,9 @@ const Post = (props) => {
                                     <a href="#!" className="name">
                                         {author}
                                     </a>
+                                </div>
+                                <div className="added-text">
+                                    {date}
                                 </div>
                                 <div className="added-text">
                                     {text}

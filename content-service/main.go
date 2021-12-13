@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -75,7 +77,7 @@ func (handler *Handler) content_latest(c *gin.Context) {
 	coll := handler.client.Database("content").Collection("posts")
 
 	filter := bson.D{}
-	opts := options.Find().SetSort(bson.D{{"date", 1}}).SetSkip(n).SetLimit(1)
+	opts := options.Find().SetSort(bson.D{{"date", -1}}).SetSkip(n).SetLimit(1)
 	cursor, err := coll.Find(context.TODO(), filter, opts)
 	if err != nil {
 		handler.logger.Printf("Error retrieveing documents: %v\n", err)
@@ -108,6 +110,13 @@ func (handler *Handler) add_content(c *gin.Context) {
 		c.AbortWithStatus(400)
 		return
 	}
+
+	t := time.Now()
+	formatted := fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d",
+		t.Year(), t.Month(), t.Day(),
+		t.Hour(), t.Minute(), t.Second())
+
+	post.Date = formatted
 
 	_, err := coll.InsertOne(context.TODO(), post)
 	if err != nil {

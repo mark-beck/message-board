@@ -19,7 +19,7 @@ const Home = () => {
             let c = posts.map((post) => {
                 console.log("posts:" + post)
                 return (
-                    <Post author={post.author} text={post.text} />
+                    <Post author={post.author} text={post.text} date={post.date} />
                 );
             })
             setContent(c)
@@ -34,7 +34,7 @@ const Home = () => {
             let c = posts.map((post) => {
                 console.log(post)
                 return (
-                    <Post author={post.author} text={post.text} />
+                    <Post author={post.author} text={post.text} date={post.date} />
                 );
             })
             setContent(c)
