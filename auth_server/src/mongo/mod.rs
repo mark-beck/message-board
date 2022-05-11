@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use super::config::Config;
 use super::crypto;
 use crate::schema::{Role, User, UserWithHash, UserWithPw};
@@ -7,28 +6,26 @@ use futures_util::stream::StreamExt;
 use mongodb::options::Credential;
 use mongodb::{bson::doc, options::ClientOptions, Client, Collection};
 use tracing::{error, info, warn};
-use crate::config::WatchedConfig;
 
 #[derive(Clone)]
 pub struct Mongo {
-    client: Client,
     users: Collection<UserWithHash>,
 }
 
 impl Mongo {
-    pub async fn from_config(config: Arc<WatchedConfig>) -> Result<Self> {
+    pub async fn from_config(config: Config) -> Result<Self> {
 
         let mut client_options = ClientOptions::parse(format!(
             "mongodb://{}:{}",
-            config.0.read().await.db.address.clone(), config.0.read().await.db.port.clone()
+            config.db.address.clone(), config.db.port.clone()
         ))
         .await?;
 
         // Manually set an option
         client_options.app_name = Some("auth_server".to_string());
         let cred = Credential::builder()
-            .username(config.0.read().await.db.user.clone())
-            .password(config.0.read().await.db.password.clone())
+            .username(config.db.user.clone())
+            .password(config.db.password.clone())
             .build();
         client_options.credential = Some(cred);
 
@@ -42,7 +39,6 @@ impl Mongo {
         tracing::info!("Mongo Connection sucessfull");
 
         let mongo = Mongo {
-            client: client.clone(),
             users: client
                 .database("auth_server")
                 .collection::<UserWithHash>("users"),
@@ -50,14 +46,14 @@ impl Mongo {
 
         match mongo
             .users
-            .find_one(doc! {"name": &config.0.read().await.default_user.name.clone()}, None)
+            .find_one(doc! {"name": &config.default_user.name.clone()}, None)
             .await?
         {
             Some(_user) => {
                 if !mongo
                     .verify_user(&UserWithPw {
-                        name: config.0.read().await.default_user.name.clone(),
-                        password: config.0.read().await.default_user.pass.clone(),
+                        name: config.default_user.name.clone(),
+                        password: config.default_user.pass.clone(),
                     })
                     .await
                 {
@@ -65,13 +61,13 @@ impl Mongo {
                 }
             }
             None => {
-                if config.0.read().await.default_user.create {
+                if config.default_user.create {
                     warn!("No default user, creating according to config");
                     mongo
                         .create_user(
                             User {
-                                name: config.0.read().await.default_user.name.clone(),
-                                password: config.0.read().await.default_user.pass.clone(),
+                                name: config.default_user.name.clone(),
+                                password: config.default_user.pass.clone(),
                                 email: "".into(),
                                 roles: vec![Role::Admin, Role::Moderator, Role::User],
                             }

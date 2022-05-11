@@ -1,5 +1,4 @@
-use std::sync::Arc;
-use crate::config::{Jwt, WatchedConfig};
+use crate::config::Config;
 use crate::config::Secret::{KeyPair, Pass};
 use crate::schema::{Role, UserClaims};
 use anyhow::{anyhow, Result};
@@ -12,23 +11,23 @@ pub struct JwtIssuer {
     header: Header,
     encoding_key: EncodingKey,
     validation: Validation,
-    config: Arc<WatchedConfig>,
+    config: Config,
 }
 
 impl JwtIssuer {
-    pub async fn new(config: Arc<WatchedConfig>) -> Result<Self> {
-        let r = match &config.0.read().await.jwt_config.secret {
+    pub async fn new(config: Config) -> Result<Self> {
+        let r = match &config.jwt_config.secret {
             Some(Pass(p)) => Self {
                 header: Header::new(Algorithm::HS256),
                 encoding_key: EncodingKey::from_secret(p.as_bytes()),
                 validation: Validation::default(),
-                config: config.clone(),
+                config,
             },
             Some(KeyPair(private, _public)) => Self {
                 header: Header::new(Algorithm::ES256),
                 encoding_key: EncodingKey::from_ec_pem(private)?,
                 validation: Validation::new(Algorithm::ES256),
-                config: config.clone(),
+                config,
             },
             None => panic!("server kaputt")
         };
@@ -40,7 +39,7 @@ impl JwtIssuer {
         T: Into<UserClaims>,
     {
         let claim: UserClaims = user.into();
-        encode(&self.header, &claim, &self.encoding_key).map_err(|e| e.into())
+        encode(&self.header, &claim, &self.encoding_key).map_err(Into::into)
     }
 
     // pub fn reissue(&self, jwt: &str) -> Result<String> {
@@ -52,7 +51,7 @@ impl JwtIssuer {
         if header != self.header {
             return Err(anyhow!("header does not match"));
         }
-        match &self.config.0.read().await.jwt_config.secret {
+        match &self.config.jwt_config.secret {
             Some(Pass(p)) => decode::<UserClaims>(
                 jwt,
                 &DecodingKey::from_secret(p.as_bytes()),
@@ -64,7 +63,7 @@ impl JwtIssuer {
             None => panic!("server kaputt")
         }
         .map(|ts| ts.claims)
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     pub async fn validate_level(&self, jwt: &str, level: Role) -> bool {

@@ -1,6 +1,6 @@
 use crate::crypto;
-use chrono::{Duration, Utc};
-use serde_derive::{Deserialize, Serialize};
+use time::{Duration, OffsetDateTime};
+use serde::{Deserialize, Serialize};
 use sodiumoxide::crypto::pwhash::argon2id13::HashedPassword;
 use std::ops::Add;
 
@@ -60,8 +60,8 @@ pub struct UserClaims {
 impl From<UserWithHash> for UserClaims {
     fn from(uh: UserWithHash) -> Self {
         UserClaims {
-            exp: Utc::now().add(Duration::hours(1)).timestamp(),
-            nbf: Utc::now().timestamp(),
+            exp: OffsetDateTime::now_utc().add(Duration::hours(1)).unix_timestamp(),
+            nbf: OffsetDateTime::now_utc().unix_timestamp(),
             sub: uh.name.clone(),
             user: uh.into(),
         }

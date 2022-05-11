@@ -33,8 +33,6 @@ func main() {
 
 	secrets := config.load()
 
-	handler := new(Handler)
-
 	clientOpts := options.Client().ApplyURI(
 		"mongodb://admin:admin@mongo:27017/?connect=direct")
 
@@ -51,6 +49,11 @@ func main() {
 	err = client.Ping(context.TODO(), readpref.Primary())
 	if err != nil {
 		log.Fatal("cant connect to mongo instance")
+	}
+
+	handler := Handler{
+		client: *client,
+		logger: *log.Default(),
 	}
 	handler.client = *client
 

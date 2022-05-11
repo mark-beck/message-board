@@ -113,7 +113,7 @@ use std::sync::Arc;
 use actix_web::dev::ServiceRequest;
 use actix_web::error;
 use actix_web::error::Error;
-use actix_web::http::{HeaderMap, StatusCode};
+use actix_web::http::{StatusCode, header::HeaderMap};
 use actix_web::web::Data;
 use actix_web_httpauth::extractors::bearer::BearerAuth;
 use crate::crypto::JwtIssuer;

@@ -13,7 +13,7 @@ use tracing::{info, trace, warn};
 
 pub mod middleware;
 
-pub(crate) async fn version() -> impl Responder {
+pub async fn version() -> impl Responder {
     trace!("version served");
     option_env!("CARGO_PKG_VERSION")
 }
@@ -84,7 +84,7 @@ impl Auth {
 
     pub async fn reissue(
         jwt_issuer: Data<Arc<JwtIssuer>>,
-        req: web::HttpRequest,
+        req: HttpRequest,
     ) -> Result<Json<TokenResponse>> {
         let old_jwt = get_jwt(req.headers()).http_result(StatusCode::BAD_REQUEST)?;
         let claims = jwt_issuer
@@ -151,26 +151,38 @@ pub trait IntoHttpError<T> {
 
 impl<T> IntoHttpError<T> for Option<T> {
     fn http_result(self, status_code: StatusCode) -> std::prelude::rust_2015::Result<T, Error> {
-        match self {
-            Some(val) => Ok(val),
-            None => {
-                warn!("http_error of Option");
-                Err(error::InternalError::new("", status_code).into())
-            }
+        if let Some(val) = self {
+            Ok(val)
+        } else {
+            warn!("http_error of Option");
+            Err(error::InternalError::new("", status_code).into())
         }
+        // match self {
+        //     Some(val) => Ok(val),
+        //     None => {
+        //         warn!("http_error of Option");
+        //         Err(error::InternalError::new("", status_code).into())
+        //     }
+        // }
     }
     fn http_log_result(
         self,
         message: &str,
         status_code: StatusCode,
     ) -> std::prelude::rust_2015::Result<T, Error> {
-        match self {
-            Some(val) => Ok(val),
-            None => {
-                warn!("http_error of Option, message: {}", message);
-                Err(error::InternalError::new("", status_code).into())
-            }
+        if let Some(val) = self {
+            Ok(val)
+        } else {
+            warn!("http_error of Option, message: {}", message);
+            Err(error::InternalError::new("", status_code).into())
         }
+        // match self {
+        //     Some(val) => Ok(val),
+        //     None => {
+        //         warn!("http_error of Option, message: {}", message);
+        //         Err(error::InternalError::new("", status_code).into())
+        //     }
+        // }
     }
 }
 

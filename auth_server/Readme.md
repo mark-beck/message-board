@@ -13,12 +13,12 @@ rm /cert/jwt.private.key
 Generate the root cert:
 ```shell
 openssl genrsa -des3 -out root.key 2048
-openssl req -x509 -new -nodes -key root.key -sha256 -days 3650 -out root.pem -subj '/CN=My Root'
+openssl req -x509 -new -nodes -key root.key -sha256 -days 3650 -out root.pem -subj '/CN=faceflix'
 ```
 Create the signed SSL cert:
 ```shell
 openssl genrsa -out sslprivate.key 2048
-openssl req -new -key sslprivate.key -out sslprivate.csr -subj '/CN=www.domain.com'
+openssl req -new -key sslprivate.key -out sslprivate.csr -subj '/CN=www.faceflix.com'
 ```
 
 now create a file named ```sslprivate.ext``` with the following content:
@@ -28,8 +28,8 @@ basicConstraints=CA:FALSE
 keyUsage=digitalSignature
 subjectAltName=@alt_names 
 [alt_names]
-DNS.1=domain.com
-DNS.2=www.domain.com
+DNS.1=faceflix.com
+DNS.2=www.faceflix.com
 ```
 Now run: 
 ```shell

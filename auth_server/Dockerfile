@@ -1,4 +1,4 @@
-FROM rust:1.56 as builder
+FROM rust:1.56.1 as builder
 WORKDIR /usr/src/auth_server
 COPY . .
 RUN cargo install --path .

@@ -1,15 +1,13 @@
+use crate::config::Config;
 use crate::crypto::JwtIssuer;
 use crate::mail::Mailer;
-use crate::schema::Role;
 use crate::api::middleware;
 use actix_web::web::Data;
 use actix_web::{web, App, HttpServer};
 use std::sync::Arc;
 use tracing::{info, Level};
-//use tracing_actix_web::TracingLogger;
+use tracing_actix_web::TracingLogger;
 use tracing_subscriber::FmtSubscriber;
-use tokio::sync::RwLock;
-use crate::config::WatchedConfig;
 use actix_web_httpauth::middleware::HttpAuthentication;
 
 mod api;
@@ -26,7 +24,7 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let config = Arc::new(WatchedConfig::new("./auth_config.toml").expect("parsing failed"));
+    let config = Config::parse("./auth_config.toml").expect("parsing failed");
 
     let mongo = Arc::new(mongo::Mongo::from_config(config.clone()).await?);
 
@@ -41,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
             .app_data(Data::new(mongo.clone()))
             .app_data(Data::new(jwt_issuer.clone()))
             .app_data(Data::new(mailer.clone()))
-            //.wrap(TracingLogger::default())
+            .wrap(TracingLogger::default())
             .wrap(actix_web::middleware::NormalizePath::default())
             .service(
                 web::scope("/auth")
@@ -65,5 +63,5 @@ async fn main() -> anyhow::Result<()> {
     .bind(("0.0.0.0", 8080))?
     .run()
     .await
-    .map_err(|e| e.into())
+    .map_err(Into::into)
 }
