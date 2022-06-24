@@ -30,6 +30,7 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./cert/jwt.public.pem:/etc/certs/jwt.public.pem:r
+      - /etc/localtime:/etc/localtime
     labels:
       - "traefik.http.routers.content.rule=Host(`localhost`) && PathPrefix(`/content`)"
       - "traefik.http.services.content.loadbalancer.server.scheme=http"

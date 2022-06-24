@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,26 +11,25 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
+type UserClaims struct {
+	Name  string   `json:"name"`
+	Email string   `json:"email"`
+	Roles []string `json:"roles"`
+}
+
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "*")
-		c.Header("Access-Control-Allow-Headers", "*")
-		c.Header("Content-Type", "application/json")
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
 
-		// Second, we handle the OPTIONS problem
-		if c.Request.Method != "OPTIONS" {
-
-			c.Next()
-
-		} else {
-
-			// Everytime we receive an OPTIONS request,
-			// we just return an HTTP 200 Status Code
-			// Like this, Angular can now do the real
-			// request using any other method than OPTIONS
-			c.AbortWithStatus(http.StatusOK)
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
 		}
+
+		c.Next()
 	}
 }
 
@@ -45,7 +45,7 @@ func AuthMiddleware(secrets Secrets) gin.HandlerFunc {
 
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
-				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
 
 			// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
@@ -62,6 +62,19 @@ func AuthMiddleware(secrets Secrets) gin.HandlerFunc {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
+
+		var userClaims UserClaims
+
+		user := token.Claims.(jwt.MapClaims)["user"]
+		userClaims.Name = user.(map[string]interface{})["name"].(string)
+		userClaims.Email = user.(map[string]interface{})["email"].(string)
+		userClaims.Roles = make([]string, 0)
+
+		for _, role := range user.(map[string]interface{})["roles"].([]interface{}) {
+			userClaims.Roles = append(userClaims.Roles, role.(string))
+		}
+
+		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), "user", userClaims))
 		c.Next()
 
 	}

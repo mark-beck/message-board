@@ -20,7 +20,7 @@ const logout = () => {
     localStorage.removeItem("user");
 };
 
-const getCurrentUser = () => {
+export const getCurrentUser = () => {
     return JSON.parse(localStorage.getItem("user"));
 };
 

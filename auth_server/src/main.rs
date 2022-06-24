@@ -9,6 +9,7 @@ use tracing::{info, Level};
 use tracing_actix_web::TracingLogger;
 use tracing_subscriber::FmtSubscriber;
 use actix_web_httpauth::middleware::HttpAuthentication;
+use actix_cors::Cors;
 
 mod api;
 mod config;
@@ -20,7 +21,7 @@ mod schema;
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
     let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::TRACE)
+        .with_max_level(Level::INFO)
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
@@ -41,6 +42,7 @@ async fn main() -> anyhow::Result<()> {
             .app_data(Data::new(mailer.clone()))
             .wrap(TracingLogger::default())
             .wrap(actix_web::middleware::NormalizePath::default())
+            .wrap(Cors::permissive())
             .service(
                 web::scope("/auth")
                     .route("/signin", web::post().to(api::Auth::sign_in))

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Routes, Route, Link, BrowserRouter } from "react-router-dom";
+import { Link, BrowserRouter, Routes, Route } from "react-router-dom";
 import { LinkContainer } from 'react-router-bootstrap';
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./App.css";
@@ -9,6 +9,7 @@ import AuthService from "./services/auth.service";
 import Login from "./components/Login";
 import Home from "./components/Home";
 import BoardUser from "./components/BoardUser";
+import Search from "./components/Search";
 
 import { Navbar, Nav, Toast, ToastContainer } from "react-bootstrap";
 
@@ -83,6 +84,13 @@ const App = () => {
                                 </Nav.Link>
                             </LinkContainer>
                         )}
+                        <Nav.Item>
+                        <LinkContainer to="/search">
+                            <Nav.Link>
+                                Search
+                            </Nav.Link>
+                        </LinkContainer>
+                    </Nav.Item>
                     </Nav>
 
                     {currentUser ? (
@@ -112,20 +120,24 @@ const App = () => {
                             </li>
                         </div>
                     )}
+
                 </Navbar.Collapse>
             </Navbar>
 
             <div className="container mt-3">
-               
+
+                
                     <Routes>
-                        <Route exact path="/" element={<Home />} />
-                        <Route exact path="/home" element={<Home />} />
-                        <Route exact path="/login" element={<Login />} />
+                    <Route exact path="/" element={<Home />} />
+                    <Route exact path="/home" element={<Home />} />
+                    <Route exact path="/login" element={<Login />} />
+                    <Route exact path="/search" element={<Search />} />
 
-                        <Route path="/user" element={<BoardUser />} />
-
+                    <Route path="/user" element={<BoardUser />} />
                     </Routes>
-               
+
+            
+
 
             </div>
             <ToastContainer className="p-3" position="bottom-center">
