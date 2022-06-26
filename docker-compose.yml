@@ -70,6 +70,14 @@ services:
       - "traefik.http.routers.panel.entrypoints=websecure"
       - "traefik.http.routers.panel.tls=true"
 
+  resizer:
+    image: resizer:latest
+    build: 
+        context: image_resizer
+        dockerfile: Dockerfile
+    environment:
+      PORT: 8015
+
   mongo:
     image: mongo:latest
     environment:

@@ -10,6 +10,7 @@ import Login from "./components/Login";
 import Home from "./components/Home";
 import BoardUser from "./components/BoardUser";
 import Search from "./components/Search";
+import PrivateRoute from "./components/PrivateRoute";
 
 import { Navbar, Nav, Toast, ToastContainer } from "react-bootstrap";
 
@@ -128,12 +129,13 @@ const App = () => {
 
                 
                     <Routes>
-                    <Route exact path="/" element={<Home />} />
-                    <Route exact path="/home" element={<Home />} />
+                    
+                    <Route exact path="/" element={<PrivateRoute><Home /></PrivateRoute>} />
+                    <Route exact path="/home" element={<PrivateRoute><Home /></PrivateRoute>} />
                     <Route exact path="/login" element={<Login />} />
-                    <Route exact path="/search" element={<Search />} />
+                    <Route exact path="/search" element={<PrivateRoute><Search /></PrivateRoute>} />
 
-                    <Route path="/user" element={<BoardUser />} />
+                    <Route path="/user" element={<PrivateRoute><BoardUser /></PrivateRoute>} />
                     </Routes>
 
             
