@@ -11,12 +11,6 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-type UserClaims struct {
-	Name  string   `json:"name"`
-	Email string   `json:"email"`
-	Roles []string `json:"roles"`
-}
-
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
