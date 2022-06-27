@@ -111,23 +111,35 @@
 
 use std::sync::Arc;
 use actix_web::dev::ServiceRequest;
-use actix_web::error;
+use actix_web::{error, HttpMessage};
 use actix_web::error::Error;
 use actix_web::http::{StatusCode, header::HeaderMap};
 use actix_web::web::Data;
 use actix_web_httpauth::extractors::bearer::BearerAuth;
 use crate::crypto::JwtIssuer;
+use crate::mongo::Mongo;
 use crate::schema::Role;
 
 pub async fn validate_admin(req: ServiceRequest, credentials: BearerAuth) -> Result<ServiceRequest, Error> {
+    validate(req, credentials, Role::Admin).await
+}
+
+pub async fn validate_user(req: ServiceRequest, credentials: BearerAuth) -> Result<ServiceRequest, Error> {
+    validate(req, credentials, Role::User).await
+}
+
+pub async fn validate(req: ServiceRequest, credentials: BearerAuth, role: Role) -> Result<ServiceRequest, Error> {
     let jwt_validator = req.app_data::<Data<Arc<JwtIssuer>>>().unwrap();
-    if jwt_validator.validate_level(credentials.token(), Role::Admin).await {
+    let mongo = req.app_data::<Data<Arc<Mongo>>>().unwrap();
+
+    if jwt_validator.validate_level(mongo, credentials.token(), role).await {
+        let claims = jwt_validator.decode(credentials.token()).await.unwrap();
+        req.extensions_mut().insert(claims);
         Ok(req)
     } else {
         Err(Error::from(error::InternalError::new("", StatusCode::UNAUTHORIZED)))
     }
 }
-
 pub fn get_jwt(headers: &HeaderMap) -> Option<&str> {
     headers
         .get("Authorization")?

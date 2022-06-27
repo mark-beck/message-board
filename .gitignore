@@ -1,4 +1,7 @@
 cert/
+misc/
+.vscode/
+
 
 
 # Created by https://www.toptal.com/developers/gitignore/api/rust,clion+all,node,react,go

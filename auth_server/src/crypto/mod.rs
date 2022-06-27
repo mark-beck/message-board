@@ -5,6 +5,8 @@ use anyhow::{anyhow, Result};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use sodiumoxide::crypto::pwhash::argon2id13;
 use tracing::trace;
+use std::sync::Arc;
+use crate::mongo::Mongo;
 
 #[derive(Clone)]
 pub struct JwtIssuer {
@@ -34,6 +36,7 @@ impl JwtIssuer {
         Ok(r)
     }
 
+    #[tracing::instrument(level="trace", skip(self, user))]
     pub fn issue<T>(&self, user: T) -> Result<String>
     where
         T: Into<UserClaims>,
@@ -46,6 +49,7 @@ impl JwtIssuer {
     //     self.issue(self.decode(jwt).await?)
     // }
 
+    #[tracing::instrument(level="trace", skip(self))]
     pub async fn decode(&self, jwt: &str) -> Result<UserClaims> {
         let header = jsonwebtoken::decode_header(jwt)?;
         if header != self.header {
@@ -66,16 +70,25 @@ impl JwtIssuer {
         .map_err(Into::into)
     }
 
-    pub async fn validate_level(&self, jwt: &str, level: Role) -> bool {
+    #[tracing::instrument(level="trace", skip(self, mongo))]
+    pub async fn validate_level(&self, mongo: &Arc<Mongo>, jwt: &str, level: Role) -> bool {
         trace!("validating level {:?}", level);
         if let Ok(claims) = self.decode(jwt).await {
             trace!("succesfully decoded");
-            return claims.user.roles.contains(&level);
+
+            let user = match mongo.get_user_from_id(&claims.user_id).await {
+                Ok(user) => user,
+                Err(_) => return false,
+            };
+
+
+            return user.roles.contains(&level);
         }
         false
     }
 }
 
+#[tracing::instrument(level="trace", skip(passwd))]
 pub fn hash(passwd: &str) -> argon2id13::HashedPassword {
     sodiumoxide::init().unwrap();
     argon2id13::pwhash(
@@ -86,6 +99,7 @@ pub fn hash(passwd: &str) -> argon2id13::HashedPassword {
     .unwrap()
 }
 
+#[tracing::instrument(level="trace", skip(passwd))]
 pub fn verify(hash: [u8; 128], passwd: &str) -> bool {
     sodiumoxide::init().unwrap();
     match argon2id13::HashedPassword::from_slice(&hash) {

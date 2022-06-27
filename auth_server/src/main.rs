@@ -52,12 +52,21 @@ async fn main() -> anyhow::Result<()> {
             .service(
                 web::scope("/admin")
                     .wrap(HttpAuthentication::bearer(middleware::validate_admin))
-                    .route("/create_user", web::post().to(api::Admin::create_user))
-                    .route("/list_users", web::get().to(api::Admin::list_users))
+                    .route("/create_user", web::post().to(api::AdminApi::create_user))
+                    .route("/list_users", web::get().to(api::AdminApi::list_users))
                     .route(
                         "/delete_user/{name}",
-                        web::delete().to(api::Admin::delete_user),
+                        web::delete().to(api::AdminApi::delete_user),
                     ),
+            )
+            .service(
+                web::scope("/user")
+                    .wrap(HttpAuthentication::bearer(middleware::validate_user))
+                    .route("/info", web::get().to(api::UserApi::info))
+                    .route("/update", web::post().to(api::UserApi::update))
+                    .route("/delete", web::delete().to(api::UserApi::delete))
+                    .route("/{id}", web::get().to(api::UserApi::get))
+                    .route("/get_batch", web::get().to(api::UserApi::get_batch)),
             )
             .route("/version", web::get().to(api::version))
             .route("/mail/{address}/{subject}/{body}", web::get().to(api::mail))

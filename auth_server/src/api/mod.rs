@@ -1,9 +1,12 @@
 use crate::crypto::JwtIssuer;
 use crate::mongo::Mongo;
-use crate::schema::{RegisteringUser, Role, TokenResponse, User, UserInfo, UserWithPw};
+use crate::schema::{
+    LoginRequest, RegisteringUser, Role, TokenResponse, UpdateRequest, User, UserClaims, UserInfo,
+    UserInfoFull,
+};
 use actix_web::error::{Error, Result};
 use actix_web::http::StatusCode;
-use actix_web::web::{Data, Json};
+use actix_web::web::{Data, Json, ReqData};
 use actix_web::{error, web, HttpRequest, HttpResponse, Responder};
 use std::sync::Arc;
 
@@ -33,7 +36,8 @@ pub async fn mail(mailer: Data<Arc<Mailer>>, req: HttpRequest) -> Result<impl Re
         .get("body")
         .http_result(StatusCode::BAD_REQUEST)?;
     Ok(mailer
-        .send_mail(address, subject, body).await
+        .send_mail(address, subject, body)
+        .await
         .http_result(StatusCode::INTERNAL_SERVER_ERROR)?
         .message()
         .collect::<String>())
@@ -42,15 +46,15 @@ pub async fn mail(mailer: Data<Arc<Mailer>>, req: HttpRequest) -> Result<impl Re
 pub struct Auth;
 
 impl Auth {
+    #[tracing::instrument(level="trace", skip(mongo, jwt_issuer, request))]
     pub(crate) async fn sign_in(
         mongo: Data<Arc<Mongo>>,
         jwt_issuer: Data<Arc<JwtIssuer>>,
-        user: web::Json<UserWithPw>,
+        request: web::Json<LoginRequest>,
     ) -> Result<Json<TokenResponse>> {
-        trace!("signin");
-        if mongo.verify_user(&user.0).await {
+        if mongo.verify_user(&request).await {
             let user_hashed = mongo
-                .get_user_from_name(&user.name)
+                .get_user_from_email(&request.email)
                 .await
                 .http_result(StatusCode::UNAUTHORIZED)?;
 
@@ -67,6 +71,7 @@ impl Auth {
         }
     }
 
+    #[tracing::instrument(level="trace", skip(mongo, user))]
     pub async fn sign_up(
         mongo: Data<Arc<Mongo>>,
         user: web::Json<RegisteringUser>,
@@ -82,44 +87,54 @@ impl Auth {
         Ok(HttpResponse::Created())
     }
 
+    #[tracing::instrument(level="trace", skip(mongo, jwt_issuer))]
     pub async fn reissue(
         jwt_issuer: Data<Arc<JwtIssuer>>,
+        mongo: Data<Arc<Mongo>>,
         req: HttpRequest,
     ) -> Result<Json<TokenResponse>> {
         let old_jwt = get_jwt(req.headers()).http_result(StatusCode::BAD_REQUEST)?;
         let claims = jwt_issuer
-            .decode(old_jwt).await
+            .decode(old_jwt)
+            .await
             .http_result(StatusCode::BAD_REQUEST)?;
         let new_jwt = jwt_issuer
             .issue(claims.clone())
             .http_result(StatusCode::BAD_REQUEST)?;
 
+        let user = mongo
+            .get_user_from_id(&claims.user_id)
+            .await
+            .http_result(StatusCode::BAD_REQUEST)?;
+
         Ok(Json(TokenResponse {
             token: new_jwt,
-            user: claims.user,
+            user: user.into(),
         }))
     }
 }
 
-pub struct Admin;
+pub struct AdminApi;
 
-impl Admin {
-    pub async fn list_users(mongo: Data<Arc<Mongo>>) -> Result<Json<Vec<UserInfo>>> {
+impl AdminApi {
+    #[tracing::instrument(level="trace", skip(mongo))]
+    pub async fn list_users(mongo: Data<Arc<Mongo>>) -> Result<Json<Vec<UserInfoFull>>> {
         trace!("list_users");
         return mongo
             .get_all_users()
             .await
-            .map(|v| Json(v.into_iter().map(UserInfo::from).collect()))
+            .map(|v| Json(v.into_iter().map(UserInfoFull::from).collect()))
             .http_result(StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    #[tracing::instrument(level="trace", skip(mongo, user))]
     pub async fn create_user(
         mongo: Data<Arc<Mongo>>,
         user: web::Json<User>,
     ) -> Result<impl Responder> {
         trace!("create_user");
 
-        info!("creating user {}", &user.name);
+        info!("creating user {}", &user.0.name);
         mongo
             .create_user(user.0.into())
             .await
@@ -127,6 +142,7 @@ impl Admin {
         Ok(HttpResponse::Created())
     }
 
+    #[tracing::instrument(level="trace", skip(mongo))]
     pub async fn delete_user(mongo: Data<Arc<Mongo>>, req: HttpRequest) -> Result<impl Responder> {
         let name = req
             .match_info()
@@ -134,6 +150,80 @@ impl Admin {
             .http_result(StatusCode::BAD_REQUEST)?;
         mongo
             .delete_user(name)
+            .await
+            .http_result(StatusCode::BAD_REQUEST)?;
+        Ok(HttpResponse::Ok())
+    }
+}
+
+pub struct UserApi;
+
+impl UserApi {
+    #[tracing::instrument(level="trace", skip(mongo, claims))]
+    pub async fn info(
+        mongo: Data<Arc<Mongo>>,
+        claims: ReqData<UserClaims>,
+    ) -> Result<Json<UserInfo>> {
+        info!("user_id: {:?}", claims.user_id);
+
+        let user = mongo
+            .get_user_from_id(&claims.user_id)
+            .await
+            .http_result(StatusCode::BAD_REQUEST)?;
+
+        Ok(Json(user.into()))
+    }
+
+    #[tracing::instrument(level="trace", skip(mongo))]
+    pub async fn get(mongo: Data<Arc<Mongo>>, req: HttpRequest) -> Result<Json<UserInfo>> {
+        let id = req
+            .match_info()
+            .get("id")
+            .http_result(StatusCode::BAD_REQUEST)?;
+        let user = mongo
+            .get_user_from_id(id)
+            .await
+            .http_result(StatusCode::BAD_REQUEST)?;
+        Ok(Json(user.into()))
+    }
+
+    #[tracing::instrument(level="trace", skip(mongo))]
+    pub async fn get_batch(
+        mongo: Data<Arc<Mongo>>,
+        batch: web::Json<Vec<String>>,
+    ) -> Result<Json<Vec<UserInfo>>> {
+        let mut infos = Vec::new();
+        for id in batch.0 {
+            let user = mongo.get_user_from_id(&id).await;
+            if let Ok(user) = user {
+                infos.push(user.into());
+            }
+        }
+        Ok(Json(infos))
+    }
+
+    #[tracing::instrument(level="trace", skip(mongo, claims, update))]
+    pub async fn update(
+        mongo: Data<Arc<Mongo>>,
+        claims: ReqData<UserClaims>,
+        update: web::Json<UpdateRequest>,
+    ) -> Result<impl Responder> {
+        info!("updating user {}", claims.user_id);
+        mongo
+            .update_user(&claims.user_id, &update)
+            .await
+            .http_result(StatusCode::BAD_REQUEST)?;
+        Ok(HttpResponse::Ok())
+    }
+
+    #[tracing::instrument(level="trace", skip(mongo, claims))]
+    pub async fn delete(
+        mongo: Data<Arc<Mongo>>,
+        claims: ReqData<UserClaims>,
+    ) -> Result<impl Responder> {
+        info!("deleting user {}", claims.user_id);
+        mongo
+            .delete_user(&claims.user_id)
             .await
             .http_result(StatusCode::BAD_REQUEST)?;
         Ok(HttpResponse::Ok())
@@ -151,38 +241,26 @@ pub trait IntoHttpError<T> {
 
 impl<T> IntoHttpError<T> for Option<T> {
     fn http_result(self, status_code: StatusCode) -> std::prelude::rust_2015::Result<T, Error> {
-        if let Some(val) = self {
-            Ok(val)
-        } else {
-            warn!("http_error of Option");
-            Err(error::InternalError::new("", status_code).into())
-        }
-        // match self {
-        //     Some(val) => Ok(val),
-        //     None => {
-        //         warn!("http_error of Option");
-        //         Err(error::InternalError::new("", status_code).into())
-        //     }
-        // }
+        self.map_or_else(
+            || {
+                warn!("http_error of option");
+                Err(error::InternalError::new("", status_code).into())
+            },
+            |val| Ok(val),
+        )
     }
     fn http_log_result(
         self,
         message: &str,
         status_code: StatusCode,
     ) -> std::prelude::rust_2015::Result<T, Error> {
-        if let Some(val) = self {
-            Ok(val)
-        } else {
-            warn!("http_error of Option, message: {}", message);
-            Err(error::InternalError::new("", status_code).into())
-        }
-        // match self {
-        //     Some(val) => Ok(val),
-        //     None => {
-        //         warn!("http_error of Option, message: {}", message);
-        //         Err(error::InternalError::new("", status_code).into())
-        //     }
-        // }
+        self.map_or_else(
+            || {
+                warn!("http_error of Option, message: {}", message);
+                Err(error::InternalError::new("", status_code).into())
+            },
+            |val| Ok(val),
+        )
     }
 }
 

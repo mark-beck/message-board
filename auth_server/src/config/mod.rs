@@ -15,7 +15,7 @@ pub struct Config {
 impl Config {
     pub fn parse(path: &str) -> Result<Self> {
         let config_string = fs::read_to_string(path)?;
-        let mut config: Config = toml::from_str(&config_string)?;
+        let mut config: Self = toml::from_str(&config_string)?;
         tracing::debug!("{:?}", config);
         if let Some(ref path) = config.jwt_config.path {
             let private = std::fs::read(&path.0)?;

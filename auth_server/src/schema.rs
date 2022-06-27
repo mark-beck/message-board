@@ -3,8 +3,8 @@ use time::{Duration, OffsetDateTime};
 use serde::{Deserialize, Serialize};
 use sodiumoxide::crypto::pwhash::argon2id13::HashedPassword;
 use std::ops::Add;
+use uuid::Uuid;
 
-#[allow(unused)]
 #[derive(Copy, Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum Role {
     User,
@@ -18,17 +18,17 @@ pub enum Status {
     Failed,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct Resp {
-    pub(crate) status: Status,
-    pub(crate) message: Option<String>,
-    pub(crate) jwt: Option<String>,
-}
+// #[derive(Serialize, Deserialize)]
+// pub struct Resp {
+//     pub(crate) status: Status,
+//     pub(crate) message: Option<String>,
+//     pub(crate) jwt: Option<String>,
+// }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct TokenResponse {
     pub(crate) token: String,
-    pub(crate) user: UserInfo,
+    pub(crate) user: UserInfoFull,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -36,25 +36,28 @@ pub struct RegisteringUser {
     pub(crate) name: String,
     pub(crate) password: String,
     pub(crate) email: String,
+    pub(crate) image: Option<String>,
 }
 
 impl RegisteringUser {
     pub fn add_roles(self, roles: Vec<Role>) -> User {
         User {
+            id : Uuid::new_v4().to_string(),
             name: self.name,
             password: self.password,
             email: self.email,
             roles,
+            image: self.image,
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct UserClaims {
     exp: i64,
     nbf: i64,
     sub: String,
-    pub(crate) user: UserInfo,
+    pub user_id: String,
 }
 
 impl From<UserWithHash> for UserClaims {
@@ -63,57 +66,100 @@ impl From<UserWithHash> for UserClaims {
             exp: OffsetDateTime::now_utc().add(Duration::hours(1)).unix_timestamp(),
             nbf: OffsetDateTime::now_utc().unix_timestamp(),
             sub: uh.name.clone(),
-            user: uh.into(),
+            user_id: uh.id,
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserWithHash {
+    pub id: String,
     pub name: String,
     pub hash: HashedPassword,
     pub email: String,
     pub roles: Vec<Role>,
+    pub image: Option<String>,
 }
 
 impl From<User> for UserWithHash {
     fn from(user: User) -> Self {
         Self {
+            id: user.id,
             name: user.name,
             hash: crypto::hash(&user.password),
             email: user.email,
             roles: user.roles,
+            image: user.image,
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserInfo {
-    pub name: String,
-    pub email: String,
-    pub roles: Vec<Role>,
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) roles: Vec<Role>,
+    pub(crate) image: Option<String>,
 }
 
 impl From<UserWithHash> for UserInfo {
     fn from(uh: UserWithHash) -> Self {
         Self {
+            id: uh.id,
             name: uh.name,
-            email: uh.email,
             roles: uh.roles,
+            image: uh.image,
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UserInfoFull {
+    pub id: String,
+    pub name: String,
+    pub email: String,
+    pub roles: Vec<Role>,
+    pub image: Option<String>,
+}
+
+impl From<UserWithHash> for UserInfoFull {
+    fn from(uh: UserWithHash) -> Self {
+        Self {
+            id: uh.id,
+            name: uh.name,
+            email: uh.email,
+            roles: uh.roles,
+            image: uh.image,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct User {
+    pub id: String,
     pub name: String,
     pub password: String,
     pub email: String,
     pub roles: Vec<Role>,
+    pub image: Option<String>,
+}
+
+// #[derive(Serialize, Deserialize)]
+// pub struct UserWithPw {
+//     pub name: String,
+//     pub password: String,
+// }
+
+#[derive(Serialize, Deserialize)]
+pub struct LoginRequest {
+    pub email: String,
+    pub password: String,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct UserWithPw {
-    pub name: String,
-    pub password: String,
+pub struct UpdateRequest {
+    pub name: Option<String>,
+    pub email: Option<String>,
+    pub password: Option<String>,
+    pub image: Option<String>,
 }

@@ -1,6 +1,6 @@
 use super::config::Config;
 use super::crypto;
-use crate::schema::{Role, User, UserWithHash, UserWithPw};
+use crate::schema::{Role, User, UserWithHash, LoginRequest, UpdateRequest};
 use anyhow::{anyhow, Result};
 use futures_util::stream::StreamExt;
 use mongodb::options::Credential;
@@ -13,6 +13,7 @@ pub struct Mongo {
 }
 
 impl Mongo {
+    #[tracing::instrument(level="trace")]
     pub async fn from_config(config: Config) -> Result<Self> {
 
         let mut client_options = ClientOptions::parse(format!(
@@ -34,7 +35,7 @@ impl Mongo {
         // Ping the server to see if you can connect to the cluster
         client
             .database("admin")
-            .run_command(doc! {"ping": 1}, None)
+            .run_command(doc! {"ping": 1u32}, None)
             .await?;
         tracing::info!("Mongo Connection sucessfull");
 
@@ -51,8 +52,8 @@ impl Mongo {
         {
             Some(_user) => {
                 if !mongo
-                    .verify_user(&UserWithPw {
-                        name: config.default_user.name.clone(),
+                    .verify_user(&LoginRequest {
+                        email: config.default_user.name.clone(),
                         password: config.default_user.pass.clone(),
                     })
                     .await
@@ -66,10 +67,12 @@ impl Mongo {
                     mongo
                         .create_user(
                             User {
+                                id: uuid::Uuid::new_v4().to_string(),
                                 name: config.default_user.name.clone(),
                                 password: config.default_user.pass.clone(),
                                 email: "".into(),
                                 roles: vec![Role::Admin, Role::Moderator, Role::User],
+                                image: None,
                             }
                             .into(),
                         )
@@ -83,8 +86,9 @@ impl Mongo {
         Ok(mongo)
     }
 
+    #[tracing::instrument(level="trace", skip(self))]
     pub async fn create_user(&self, user: UserWithHash) -> Result<()> {
-        if self.get_user_from_name(&user.name).await.is_some() {
+        if self.get_user_from_email(&user.name).await.is_ok() {
             return Err(anyhow!("User exists!"));
         }
         self.users.insert_one(&user, None).await?;
@@ -92,30 +96,66 @@ impl Mongo {
         Ok(())
     }
 
-    pub async fn verify_user(&self, user: &UserWithPw) -> bool {
-        match self.get_user_from_name(&user.name).await {
-            None => false,
-            Some(userhashed) => crypto::verify(userhashed.hash.0, &user.password),
+    #[tracing::instrument(level="trace", skip(self, request))]
+    pub async fn verify_user(&self, request: &LoginRequest) -> bool {
+        match self.get_user_from_email(&request.email).await {
+            Err(_) => false,
+            Ok(user) => crypto::verify(user.hash.0, &request.password),
         }
     }
 
-    pub async fn get_user_from_name(&self, name: &str) -> Option<UserWithHash> {
-        match self.users.find_one(doc! {"name": name}, None).await {
-            Ok(u) => u,
+    #[tracing::instrument(level="trace", skip(self))]
+    pub async fn get_user_from_email(&self, email: &str) -> Result<UserWithHash> {
+        match self.users.find_one(doc! {"email": email}, None).await {
+            Ok(Some(u)) => Ok(u),
+            Ok(None) => Err(anyhow!("User not found")),
             Err(e) => {
                 warn!("Error while searching for user: {:?}", e);
-                None
+                Err(e.into())
             }
         }
     }
 
-    pub async fn delete_user(&self, name: &str) -> Result<()> {
-        match self.users.delete_one(doc! {"name": name}, None).await {
+    #[tracing::instrument(level="trace", skip(self))]
+    pub async fn get_user_from_id(&self, id: &str) -> Result<UserWithHash> {
+        match self.users.find_one(doc! {"id": id}, None).await {
+            Ok(Some(u)) => Ok(u),
+            Ok(None) => Err(anyhow!("User not found")),
+            Err(e) => {
+                warn!("Error while searching for user: {:?}", e);
+                Err(e.into())
+            }
+        }
+    }
+
+    #[tracing::instrument(level="trace", skip(self, update_request))]
+    pub async fn update_user(&self, id: &str, update_request: &UpdateRequest) -> Result<()> {
+        let mut user = self.get_user_from_id(id).await?;
+        if let Some(password) = update_request.password.clone() {
+            user.hash = crypto::hash(&password);
+        }
+        if let Some(email) = update_request.email.clone() {
+            user.email = email;
+        }
+        if let Some(image) = update_request.image.clone() {
+            user.image = Some(image);
+        }
+        if let Some(name) = update_request.name.clone() {
+            user.name = name;
+        }
+        self.users.replace_one(doc! {"id": id}, &user, None).await?;
+        Ok(())
+    }
+
+    #[tracing::instrument(level="trace", skip(self))]
+    pub async fn delete_user(&self, id: &str) -> Result<()> {
+        match self.users.delete_one(doc! {"id": id}, None).await {
             Ok(_) => Ok(()),
             Err(e) => Err(anyhow::Error::new(e)),
         }
     }
 
+    #[tracing::instrument(level="trace", skip(self))]
     pub async fn get_all_users(&self) -> Result<Vec<UserWithHash>> {
         return match self.users.find(doc! {}, None).await {
             Ok(cursor) => Ok(cursor.filter_map(|v| async { v.ok() }).collect().await),
