@@ -50,29 +50,31 @@ async fn main() -> anyhow::Result<()> {
                 web::scope("/auth")
                     .route("/signin", web::post().to(api::Auth::sign_in))
                     .route("/signup", web::post().to(api::Auth::sign_up))
-                    .route("/reissue", web::post().to(api::Auth::reissue)),
+                    .route("/reissue", web::post().to(api::Auth::reissue))
+                    .service(
+                        web::scope("/admin")
+                            .wrap(HttpAuthentication::bearer(middleware::validate_admin))
+                            .route("/create_user", web::post().to(api::AdminApi::create_user))
+                            .route("/list_users", web::get().to(api::AdminApi::list_users))
+                            .route("/update_user/{id}", web::post().to(api::AdminApi::update_user))
+                            .route(
+                                "/delete_user/{id}",
+                                web::delete().to(api::AdminApi::delete_user),
+                            ),
+                    )
+                    .service(
+                        web::scope("/user")
+                            .wrap(HttpAuthentication::bearer(middleware::validate_user))
+                            .route("/info", web::get().to(api::UserApi::info))
+                            .route("/update", web::post().to(api::UserApi::update))
+                            .route("/delete", web::delete().to(api::UserApi::delete))
+                            .route("/{id}", web::get().to(api::UserApi::get))
+                            .route("/get_batch", web::get().to(api::UserApi::get_batch))
+                            .route("/email/{email}", web::get().to(api::UserApi::get_email)),
+                    )
+                    .route("/version", web::get().to(api::version))
             )
-            .service(
-                web::scope("/auth/admin")
-                    .wrap(HttpAuthentication::bearer(middleware::validate_admin))
-                    .route("/create_user", web::post().to(api::AdminApi::create_user))
-                    .route("/list_users", web::get().to(api::AdminApi::list_users))
-                    .route("/update_user/{id}", web::post().to(api::AdminApi::update_user))
-                    .route(
-                        "/delete_user/{name}",
-                        web::delete().to(api::AdminApi::delete_user),
-                    ),
-            )
-            .service(
-                web::scope("/auth/user")
-                    .wrap(HttpAuthentication::bearer(middleware::validate_user))
-                    .route("/info", web::get().to(api::UserApi::info))
-                    .route("/update", web::post().to(api::UserApi::update))
-                    .route("/delete", web::delete().to(api::UserApi::delete))
-                    .route("/{id}", web::get().to(api::UserApi::get))
-                    .route("/get_batch", web::get().to(api::UserApi::get_batch)),
-            )
-            .route("/auth/version", web::get().to(api::version))
+            
     })
     .bind(("0.0.0.0", 8080))?
     .run()

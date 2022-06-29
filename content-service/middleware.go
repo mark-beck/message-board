@@ -46,7 +46,7 @@ func AuthMiddleware(secrets Secrets) gin.HandlerFunc {
 			return secrets.token_public, nil
 		})
 		if err != nil {
-			log.Printf("Errorwhile parsing token: %v\n", err)
+			log.Printf("Error while parsing token: %v\n", err)
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
@@ -57,18 +57,9 @@ func AuthMiddleware(secrets Secrets) gin.HandlerFunc {
 			return
 		}
 
-		var userClaims UserClaims
+		user_id := token.Claims.(jwt.MapClaims)["user_id"]
 
-		user := token.Claims.(jwt.MapClaims)["user"]
-		userClaims.Name = user.(map[string]interface{})["name"].(string)
-		userClaims.Email = user.(map[string]interface{})["email"].(string)
-		userClaims.Roles = make([]string, 0)
-
-		for _, role := range user.(map[string]interface{})["roles"].([]interface{}) {
-			userClaims.Roles = append(userClaims.Roles, role.(string))
-		}
-
-		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), "user", userClaims))
+		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), "user_id", user_id))
 		c.Next()
 
 	}

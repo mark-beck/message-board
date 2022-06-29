@@ -57,18 +57,18 @@ func main() {
 		posts.POST("/add", handler.add_post)
 		posts.POST("/filter", handler.filter_posts)
 		posts.POST("/inject", handler.inject_posts)
-		posts.GET("/delete_all", handler.delete_all_posts)
-		posts.DELETE("/delete/:id", handler.delete_post)
+		posts.DELETE("/all", handler.delete_all_posts)
+		posts.DELETE("/:id", handler.delete_post)
 	}
 	{
 		comments := content.Group("/comments")
-		comments.GET("/get/:id", handler.get_comment)
+		comments.GET("/:id", handler.get_comment)
 		comments.GET("/all", handler.get_all_comments)
 		comments.POST("/add", handler.add_comment)
 		comments.POST("/filter", handler.filter_comments)
 		comments.POST("/inject", handler.inject_comments)
-		comments.GET("/delete_all", handler.delete_all_comments)
-		comments.DELETE("/delete/:id", handler.delete_comment)
+		comments.DELETE("/all", handler.delete_all_comments)
+		comments.DELETE("/:id", handler.delete_comment)
 	}
 
 	r.Run() // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")

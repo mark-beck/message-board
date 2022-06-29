@@ -107,13 +107,13 @@ impl AdminApi {
     #[tracing::instrument(level="trace", skip(mongo))]
     pub async fn create_user(
         mongo: Data<Arc<Mongo>>,
-        user: web::Json<User>,
+        user: web::Json<RegisteringUser>,
     ) -> Result<impl Responder> {
         trace!("create_user");
 
         info!("creating user {}", &user.0.name);
         mongo
-            .create_user(user.0.into())
+            .create_user(user.0.add_roles(vec![Role::User]).into())
             .await
             .http_result(StatusCode::CONFLICT)?;
         Ok(HttpResponse::Created())
@@ -136,12 +136,12 @@ impl AdminApi {
 
     #[tracing::instrument(level="trace", skip(mongo))]
     pub async fn delete_user(mongo: Data<Arc<Mongo>>, req: HttpRequest) -> Result<impl Responder> {
-        let name = req
+        let id = req
             .match_info()
-            .get("name")
+            .get("id")
             .http_result(StatusCode::BAD_REQUEST)?;
         mongo
-            .delete_user(name)
+            .delete_user(id)
             .await
             .http_result(StatusCode::BAD_REQUEST)?;
         Ok(HttpResponse::Ok())
@@ -174,6 +174,19 @@ impl UserApi {
             .http_result(StatusCode::BAD_REQUEST)?;
         let user = mongo
             .get_user_from_id(id)
+            .await
+            .http_result(StatusCode::BAD_REQUEST)?;
+        Ok(Json(user.into()))
+    }
+
+    #[tracing::instrument(level="trace", skip(mongo))]
+    pub async fn get_email(mongo: Data<Arc<Mongo>>, req: HttpRequest) -> Result<Json<UserInfo>> {
+        let email = req
+            .match_info()
+            .get("email")
+            .http_result(StatusCode::BAD_REQUEST)?;
+        let user = mongo
+            .get_user_from_email(email)
             .await
             .http_result(StatusCode::BAD_REQUEST)?;
         Ok(Json(user.into()))

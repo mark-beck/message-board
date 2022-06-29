@@ -159,12 +159,6 @@ pub struct User {
     pub image: Option<String>,
 }
 
-// #[derive(Serialize, Deserialize)]
-// pub struct UserWithPw {
-//     pub name: String,
-//     pub password: String,
-// }
-
 #[derive(Serialize, Deserialize, Derivative)]
 #[derivative(Debug)]
 pub struct LoginRequest {

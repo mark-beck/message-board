@@ -32,7 +32,7 @@ func (handler *Handler) add_post(c *gin.Context) {
 
 	post.Date = dateToString(time.Now())
 
-	post.Author = c.Request.Context().Value("user").(UserClaims).Name
+	post.Author = c.Request.Context().Value("user_id").(string)
 
 	err := mongo_add_post(&handler.client, post)
 	if err != nil {
