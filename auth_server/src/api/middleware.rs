@@ -128,6 +128,7 @@ pub async fn validate_user(req: ServiceRequest, credentials: BearerAuth) -> Resu
     validate(req, credentials, Role::User).await
 }
 
+#[tracing::instrument(level="trace", skip(req, credentials))]
 pub async fn validate(req: ServiceRequest, credentials: BearerAuth, role: Role) -> Result<ServiceRequest, Error> {
     let jwt_validator = req.app_data::<Data<Arc<JwtIssuer>>>().unwrap();
     let mongo = req.app_data::<Data<Arc<Mongo>>>().unwrap();
@@ -140,6 +141,8 @@ pub async fn validate(req: ServiceRequest, credentials: BearerAuth, role: Role) 
         Err(Error::from(error::InternalError::new("", StatusCode::UNAUTHORIZED)))
     }
 }
+
+#[tracing::instrument(level="trace", skip(headers))]
 pub fn get_jwt(headers: &HeaderMap) -> Option<&str> {
     headers
         .get("Authorization")?

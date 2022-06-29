@@ -1,9 +1,11 @@
 use crate::crypto;
+use actix_web::web::Json;
 use time::{Duration, OffsetDateTime};
 use serde::{Deserialize, Serialize};
 use sodiumoxide::crypto::pwhash::argon2id13::HashedPassword;
 use std::ops::Add;
 use uuid::Uuid;
+use derivative::Derivative;
 
 #[derive(Copy, Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum Role {
@@ -31,11 +33,14 @@ pub struct TokenResponse {
     pub(crate) user: UserInfoFull,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Derivative)]
+#[derivative(Debug)]
 pub struct RegisteringUser {
     pub(crate) name: String,
+    #[derivative(Debug="ignore")]
     pub(crate) password: String,
     pub(crate) email: String,
+    #[derivative(Debug="ignore")]
     pub(crate) image: Option<String>,
 }
 
@@ -71,13 +76,16 @@ impl From<UserWithHash> for UserClaims {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone, Derivative)]
+#[derivative(Debug)]
 pub struct UserWithHash {
     pub id: String,
     pub name: String,
+    #[derivative(Debug="ignore")]
     pub hash: HashedPassword,
     pub email: String,
     pub roles: Vec<Role>,
+    #[derivative(Debug="ignore")]
     pub image: Option<String>,
 }
 
@@ -94,11 +102,13 @@ impl From<User> for UserWithHash {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone, Derivative)]
+#[derivative(Debug)]
 pub struct UserInfo {
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) roles: Vec<Role>,
+    #[derivative(Debug="ignore")]
     pub(crate) image: Option<String>,
 }
 
@@ -113,12 +123,14 @@ impl From<UserWithHash> for UserInfo {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone, Derivative)]
+#[derivative(Debug)]
 pub struct UserInfoFull {
     pub id: String,
     pub name: String,
     pub email: String,
     pub roles: Vec<Role>,
+    #[derivative(Debug="ignore")]
     pub image: Option<String>,
 }
 
@@ -134,13 +146,16 @@ impl From<UserWithHash> for UserInfoFull {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Derivative)]
+#[derivative(Debug)]
 pub struct User {
     pub id: String,
     pub name: String,
+    #[derivative(Debug="ignore")]
     pub password: String,
     pub email: String,
     pub roles: Vec<Role>,
+    #[derivative(Debug="ignore")]
     pub image: Option<String>,
 }
 
@@ -150,16 +165,52 @@ pub struct User {
 //     pub password: String,
 // }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Derivative)]
+#[derivative(Debug)]
 pub struct LoginRequest {
     pub email: String,
+    #[derivative(Debug="ignore")]
     pub password: String,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct UpdateRequest {
+#[derive(Serialize, Deserialize, Derivative)]
+#[derivative(Debug)]
+pub struct UpdateRequestUser {
     pub name: Option<String>,
     pub email: Option<String>,
+    #[derivative(Debug="ignore")]
     pub password: Option<String>,
+    #[derivative(Debug="ignore")]
     pub image: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Derivative)]
+#[derivative(Debug)]
+pub struct UpdateRequestAdmin {
+    pub name: Option<String>,
+    pub email: Option<String>,
+    #[derivative(Debug="ignore")]
+    pub password: Option<String>,
+    #[derivative(Debug="ignore")]
+    pub image: Option<String>,
+    pub roles: Option<Vec<Role>>,
+}
+
+#[derive(Serialize, Deserialize, Derivative)]
+#[derivative(Debug)]
+pub enum UpdateRequest {
+    User(UpdateRequestUser),
+    Admin(UpdateRequestAdmin),
+}
+
+impl From<Json<UpdateRequestUser>> for UpdateRequest {
+    fn from(ur: Json<UpdateRequestUser>) -> Self {
+        Self::User(ur.0)
+    }
+}
+
+impl From<Json<UpdateRequestAdmin>> for UpdateRequest {
+    fn from(ur: Json<UpdateRequestAdmin>) -> Self {
+        Self::Admin(ur.0)
+    }
 }

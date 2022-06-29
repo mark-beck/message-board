@@ -99,7 +99,7 @@ pub fn hash(passwd: &str) -> argon2id13::HashedPassword {
     .unwrap()
 }
 
-#[tracing::instrument(level="trace", skip(passwd))]
+#[tracing::instrument(level="trace", skip(hash, passwd))]
 pub fn verify(hash: [u8; 128], passwd: &str) -> bool {
     sodiumoxide::init().unwrap();
     match argon2id13::HashedPassword::from_slice(&hash) {

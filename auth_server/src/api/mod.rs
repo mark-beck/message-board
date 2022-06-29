@@ -1,8 +1,8 @@
 use crate::crypto::JwtIssuer;
 use crate::mongo::Mongo;
 use crate::schema::{
-    LoginRequest, RegisteringUser, Role, TokenResponse, UpdateRequest, User, UserClaims, UserInfo,
-    UserInfoFull,
+    LoginRequest, RegisteringUser, Role, TokenResponse, User, UserClaims, UserInfo,
+    UserInfoFull, UpdateRequestUser, UpdateRequestAdmin,
 };
 use actix_web::error::{Error, Result};
 use actix_web::http::StatusCode;
@@ -11,7 +11,6 @@ use actix_web::{error, web, HttpRequest, HttpResponse, Responder};
 use std::sync::Arc;
 
 use crate::api::middleware::get_jwt;
-use crate::mail::Mailer;
 use tracing::{info, trace, warn};
 
 pub mod middleware;
@@ -21,32 +20,10 @@ pub async fn version() -> impl Responder {
     option_env!("CARGO_PKG_VERSION")
 }
 
-pub async fn mail(mailer: Data<Arc<Mailer>>, req: HttpRequest) -> Result<impl Responder> {
-    trace!("mail handler");
-    let address = req
-        .match_info()
-        .get("address")
-        .http_result(StatusCode::BAD_REQUEST)?;
-    let subject = req
-        .match_info()
-        .get("subject")
-        .http_result(StatusCode::BAD_REQUEST)?;
-    let body = req
-        .match_info()
-        .get("body")
-        .http_result(StatusCode::BAD_REQUEST)?;
-    Ok(mailer
-        .send_mail(address, subject, body)
-        .await
-        .http_result(StatusCode::INTERNAL_SERVER_ERROR)?
-        .message()
-        .collect::<String>())
-}
-
 pub struct Auth;
 
 impl Auth {
-    #[tracing::instrument(level="trace", skip(mongo, jwt_issuer, request))]
+    #[tracing::instrument(level="trace", skip(mongo, jwt_issuer))]
     pub(crate) async fn sign_in(
         mongo: Data<Arc<Mongo>>,
         jwt_issuer: Data<Arc<JwtIssuer>>,
@@ -56,7 +33,7 @@ impl Auth {
             let user_hashed = mongo
                 .get_user_from_email(&request.email)
                 .await
-                .http_result(StatusCode::UNAUTHORIZED)?;
+                .http_log_result("error finding user", StatusCode::UNAUTHORIZED)?;
 
             let jwt = jwt_issuer
                 .issue(user_hashed.clone())
@@ -71,7 +48,7 @@ impl Auth {
         }
     }
 
-    #[tracing::instrument(level="trace", skip(mongo, user))]
+    #[tracing::instrument(level="trace", skip(mongo))]
     pub async fn sign_up(
         mongo: Data<Arc<Mongo>>,
         user: web::Json<RegisteringUser>,
@@ -127,7 +104,7 @@ impl AdminApi {
             .http_result(StatusCode::INTERNAL_SERVER_ERROR);
     }
 
-    #[tracing::instrument(level="trace", skip(mongo, user))]
+    #[tracing::instrument(level="trace", skip(mongo))]
     pub async fn create_user(
         mongo: Data<Arc<Mongo>>,
         user: web::Json<User>,
@@ -140,6 +117,21 @@ impl AdminApi {
             .await
             .http_result(StatusCode::CONFLICT)?;
         Ok(HttpResponse::Created())
+    }
+
+    #[tracing::instrument(level="trace", skip(mongo, req))]
+    pub async fn update_user(mongo: Data<Arc<Mongo>>, req: HttpRequest, update_request: Json<UpdateRequestAdmin>) -> Result<impl Responder> {
+        let id = req
+            .match_info()
+            .get("id")
+            .http_result(StatusCode::BAD_REQUEST)?;
+        
+        info!("updating user {}", id);
+        mongo
+            .update_user(id, &update_request.into())
+            .await
+            .http_result(StatusCode::INTERNAL_SERVER_ERROR)?;
+        Ok(HttpResponse::Ok())
     }
 
     #[tracing::instrument(level="trace", skip(mongo))]
@@ -202,21 +194,21 @@ impl UserApi {
         Ok(Json(infos))
     }
 
-    #[tracing::instrument(level="trace", skip(mongo, claims, update))]
+    #[tracing::instrument(level="trace", skip(mongo))]
     pub async fn update(
         mongo: Data<Arc<Mongo>>,
         claims: ReqData<UserClaims>,
-        update: web::Json<UpdateRequest>,
+        update: web::Json<UpdateRequestUser>,
     ) -> Result<impl Responder> {
         info!("updating user {}", claims.user_id);
         mongo
-            .update_user(&claims.user_id, &update)
+            .update_user(&claims.user_id, &update.into())
             .await
             .http_result(StatusCode::BAD_REQUEST)?;
         Ok(HttpResponse::Ok())
     }
 
-    #[tracing::instrument(level="trace", skip(mongo, claims))]
+    #[tracing::instrument(level="trace", skip(mongo))]
     pub async fn delete(
         mongo: Data<Arc<Mongo>>,
         claims: ReqData<UserClaims>,

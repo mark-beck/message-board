@@ -1,7 +1,3 @@
-[mail]
-sender = "noreply@localhost"
-server = "mail-sender"
-
 [db]
 address = "mongo"
 port = "27017"

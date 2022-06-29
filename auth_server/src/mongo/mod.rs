@@ -47,7 +47,7 @@ impl Mongo {
 
         match mongo
             .users
-            .find_one(doc! {"name": &config.default_user.name.clone()}, None)
+            .find_one(doc! {"email": &config.default_user.name.clone()}, None)
             .await?
         {
             Some(_user) => {
@@ -68,9 +68,9 @@ impl Mongo {
                         .create_user(
                             User {
                                 id: uuid::Uuid::new_v4().to_string(),
-                                name: config.default_user.name.clone(),
+                                name: "".into(),
                                 password: config.default_user.pass.clone(),
-                                email: "".into(),
+                                email: config.default_user.name.clone(),
                                 roles: vec![Role::Admin, Role::Moderator, Role::User],
                                 image: None,
                             }
@@ -88,15 +88,15 @@ impl Mongo {
 
     #[tracing::instrument(level="trace", skip(self))]
     pub async fn create_user(&self, user: UserWithHash) -> Result<()> {
-        if self.get_user_from_email(&user.name).await.is_ok() {
+        if self.get_user_from_email(&user.email).await.is_ok() {
             return Err(anyhow!("User exists!"));
         }
         self.users.insert_one(&user, None).await?;
-        info!("adding user {:?} with roles {:?}", user.name, user.roles);
+        info!("adding user {:?} with roles {:?}", user.email, user.roles);
         Ok(())
     }
 
-    #[tracing::instrument(level="trace", skip(self, request))]
+    #[tracing::instrument(level="trace", skip(self))]
     pub async fn verify_user(&self, request: &LoginRequest) -> bool {
         match self.get_user_from_email(&request.email).await {
             Err(_) => false,
@@ -128,22 +128,47 @@ impl Mongo {
         }
     }
 
-    #[tracing::instrument(level="trace", skip(self, update_request))]
+    #[tracing::instrument(level="trace", skip(self))]
     pub async fn update_user(&self, id: &str, update_request: &UpdateRequest) -> Result<()> {
         let mut user = self.get_user_from_id(id).await?;
-        if let Some(password) = update_request.password.clone() {
-            user.hash = crypto::hash(&password);
+
+        match update_request {
+            UpdateRequest::User(update_request) => {
+                if let Some(password) = update_request.password.clone() {
+                    user.hash = crypto::hash(&password);
+                }
+                if let Some(email) = update_request.email.clone() {
+                    user.email = email;
+                }
+                if let Some(image) = update_request.image.clone() {
+                    user.image = Some(image);
+                }
+                if let Some(name) = update_request.name.clone() {
+                    user.name = name;
+                }
+                self.users.replace_one(doc! {"id": id}, &user, None).await?;
+            }
+            UpdateRequest::Admin(update_request) => {
+                if let Some(password) = update_request.password.clone() {
+                    user.hash = crypto::hash(&password);
+                }
+                if let Some(email) = update_request.email.clone() {
+                    user.email = email;
+                }
+                if let Some(image) = update_request.image.clone() {
+                    user.image = Some(image);
+                }
+                if let Some(name) = update_request.name.clone() {
+                    user.name = name;
+                }
+                if let Some(roles) = update_request.roles.clone() {
+                    user.roles = roles;
+                }
+                self.users.replace_one(doc! {"id": id}, &user, None).await?;
+            }
         }
-        if let Some(email) = update_request.email.clone() {
-            user.email = email;
-        }
-        if let Some(image) = update_request.image.clone() {
-            user.image = Some(image);
-        }
-        if let Some(name) = update_request.name.clone() {
-            user.name = name;
-        }
-        self.users.replace_one(doc! {"id": id}, &user, None).await?;
+
+        
         Ok(())
     }
 

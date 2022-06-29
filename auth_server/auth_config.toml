@@ -1,7 +1,3 @@
-[mail]
-sender = "noreply@localhost"
-server = "localhost"
-
 [db]
 address = "localhost"
 port = "27017"
@@ -14,4 +10,4 @@ pass = "admin"
 create = true
 
 [jwt_config]
-path = ["./cert/jwt.private.pem", "./cert/jwt.public.pem"]
+path = ["../cert/jwt.private.pem", "../cert/jwt.public.pem"]

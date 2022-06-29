@@ -64,7 +64,7 @@ services:
         context: client
         dockerfile: Dockerfile
     labels:
-      - "traefik.http.routers.panel.rule=Host(`localhost`)"
+      - "traefik.http.routers.panel.rule=Host(`localhost`) && !PathPrefix(`/trace`)"
       - "traefik.http.services.panel.loadbalancer.server.scheme=http"
       - "traefik.http.services.panel.loadbalancer.server.port=80"
       - "traefik.http.routers.panel.entrypoints=websecure"
@@ -91,4 +91,19 @@ services:
     environment:
       ME_CONFIG_MONGODB_ADMINUSERNAME: admin
       ME_CONFIG_MONGODB_ADMINPASSWORD: admin
-      ME_CONFIG_MONGODB_URL: mongodb://root:example@mongo:27017/
+      ME_CONFIG_MONGODB_URL: mongodb://admin:admin@mongo:27017/
+    restart: on-failure
+
+
+
+  tracing:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"
+    labels:
+      - "traefik.http.routers.tracing.rule=Host(`localhost`) && PathPrefix(`/trace`)"
+      - "traefik.http.services.tracing.loadbalancer.server.scheme=http"
+      - "traefik.http.services.tracing.loadbalancer.server.port=16686"
+      - "traefik.http.routers.tracing.entrypoints=websecure"
+      - "traefik.http.routers.tracing.tls=true"
+      - "traefik.http.middlewares.tracing.stripprefix.prefixes=/trace"
