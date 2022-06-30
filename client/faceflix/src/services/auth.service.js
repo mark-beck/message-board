@@ -3,10 +3,10 @@ import axios from "axios";
 const API_URL = "https://localhost/auth";
 
 
-const login = async (username, password) => {
+const login = async (email, password) => {
     const response = await axios
         .post(API_URL + '/signin', {
-            name: username,
+            email: email,
             password: password,
         });
     if (response.data.token) {

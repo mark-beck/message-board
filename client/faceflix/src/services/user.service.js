@@ -45,11 +45,9 @@ const deleteUser = (name) => {
 export async function getPublicContent() {
     console.log("getting content");
     
-    let posts = await axios.get(C_URL + "/all", { headers: authHeader() });
+    let posts = await axios.get(C_URL + "/posts/all", { headers: authHeader() });
 
-    return posts.data
-
-    
+    return posts.data 
 };
 
 export async function postContent(text) {
