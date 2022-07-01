@@ -1,8 +1,6 @@
 package main
 
 import (
-	"log"
-
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -40,6 +38,6 @@ type (
 
 	Handler struct {
 		client mongo.Client
-		logger log.Logger
+		auth   AuthServer
 	}
 )

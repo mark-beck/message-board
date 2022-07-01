@@ -28,6 +28,12 @@ services:
     build:
       context: content-service
       dockerfile: Dockerfile
+    environment:
+      - PORT=8080
+      - AUTH_NAME=auth_server
+      - AUTH_PORT=8080
+      - JAEGER_AGENT_HOST=tracing
+      - JAEGER_AGENT_PORT=6831
     volumes:
       - ./cert/jwt.public.pem:/etc/certs/jwt.public.pem:r
       - /etc/localtime:/etc/localtime
@@ -104,6 +110,6 @@ services:
       - "traefik.http.routers.tracing.rule=Host(`localhost`) && PathPrefix(`/trace`)"
       - "traefik.http.services.tracing.loadbalancer.server.scheme=http"
       - "traefik.http.services.tracing.loadbalancer.server.port=16686"
-      - "traefik.http.routers.tracing.entrypoints=websecure"
+      - "traefik.http.router192.168.1.10s.tracing.entrypoints=websecure"
       - "traefik.http.routers.tracing.tls=true"
       - "traefik.http.middlewares.tracing.stripprefix.prefixes=/trace"

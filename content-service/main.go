@@ -2,10 +2,17 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"net/http"
+	"os"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/labstack/echo-contrib/jaegertracing"
+	"github.com/labstack/gommon/log"
+	"github.com/opentracing/opentracing-go"
+
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
@@ -39,17 +46,26 @@ func main() {
 
 	handler := Handler{
 		client: *client,
-		logger: *log.Default(),
+		auth:   init_auth(),
 	}
 	handler.client = *client
 
-	handler.logger = *log.Default()
+	e := echo.New()
+	e.HideBanner = true
 
-	r := gin.Default()
+	e.Logger.SetLevel(log.DEBUG)
+	e.Logger.SetOutput(os.Stdout)
+	e.Use(middleware.Logger())
 
-	r.Use(CORSMiddleware())
-	content := r.Group("/content", AuthMiddleware(secrets))
-	// content := r.Group("/content")
+	c := jaegertracing.New(e, nil)
+	defer c.Close()
+
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"*"},
+		AllowMethods: []string{http.MethodGet, http.MethodPut, http.MethodPost, http.MethodDelete},
+	}))
+	content := e.Group("/content", secrets.AuthMiddleware)
+	// content := e.Group("/content")
 
 	{
 		posts := content.Group("/posts")
@@ -71,10 +87,15 @@ func main() {
 		comments.DELETE("/:id", handler.delete_comment)
 	}
 
-	r.Run() // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	e.Logger.Fatal(e.Start(fmt.Sprint(":" + port)))
 }
 
-func (userClaims UserClaims) isRole(role string) bool {
+func (userClaims UserInfo) isRole(role string) bool {
 	for _, r := range userClaims.Roles {
 		if r == role {
 			return true
@@ -86,4 +107,13 @@ func (userClaims UserClaims) isRole(role string) bool {
 // a function that converts go date objects to iso8601 strings
 func dateToString(date time.Time) string {
 	return date.Format("2006-01-02T15:04:05")
+}
+
+func Error(sp opentracing.Span, message string, err interface{}) {
+	sp.SetTag("error", true)
+	sp.LogKV("level", "ERROR", message, err)
+}
+
+func Info(sp opentracing.Span, message string, info interface{}) {
+	sp.LogKV("level", "INFO", message, info)
 }

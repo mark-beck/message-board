@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"log"
 
@@ -43,6 +44,8 @@ func mongo_get_all_posts(client *mongo.Client) ([]Post, error) {
 
 		posts = append(posts, post)
 	}
+
+	fmt.Println(posts)
 
 	return posts, err
 }
