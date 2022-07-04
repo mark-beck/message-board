@@ -12,10 +12,13 @@ import (
 	"os"
 
 	"github.com/chai2010/webp"
+	"github.com/google/uuid"
+	"github.com/labstack/echo-contrib/jaegertracing"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/nfnt/resize"
+	"github.com/opentracing/opentracing-go"
 )
 
 type resizeRequest struct {
@@ -23,6 +26,12 @@ type resizeRequest struct {
 	X      uint   `json:"x" form:"x" query:"x" validate:"required"`
 	Y      uint   `json:"y" form:"y" query:"y" validate:"required"`
 	Format string `json:"format" form:"format" query:"format" validate:"required"`
+}
+
+type ResizeResponse struct {
+	Id string `json:"id"`
+	X  uint   `json:"x"`
+	Y  uint   `json:"y"`
 }
 
 func main() {
@@ -36,6 +45,9 @@ func main() {
 
 	// Hide banner
 	e.HideBanner = true
+
+	c := jaegertracing.New(e, nil)
+	defer c.Close()
 
 	// Setup logging
 	e.Logger.SetLevel(log.INFO)
@@ -52,38 +64,47 @@ func main() {
 }
 
 func scaleImage(c echo.Context) error {
+	sp := jaegertracing.CreateChildSpan(c, "scaleImage")
+	defer sp.Finish()
 	return resizeImage(c, "scale")
 }
 
 func limitImage(c echo.Context) error {
+	sp := jaegertracing.CreateChildSpan(c, "limitImage")
+	defer sp.Finish()
 	return resizeImage(c, "limit")
 }
 
 // this function takes a post request with an image and returns the image
 func resizeImage(c echo.Context, operation string) error {
+	sp := jaegertracing.CreateChildSpan(c, "resizeImage")
+	defer sp.Finish()
 
 	// bind request to resizeRequest struct
 	req := new(resizeRequest)
 	if err := c.Bind(req); err != nil {
-		return err
+		Error(sp, "Error binding request", err)
+		return echo.ErrBadRequest
 	}
 
-	c.Logger().Debugf("%+v", req)
+	Info(sp, "Request received", req)
 
 	// decode image from base64
 	decoded, err := base64.StdEncoding.DecodeString(req.Data)
 	if err != nil {
-		return err
+		Error(sp, "Error decoding image", err)
+		return echo.ErrBadRequest
 	}
 
 	reader := bytes.NewReader(decoded)
 
 	image, format, err := image.Decode(reader)
 	if err != nil {
-		return err
+		Error(sp, "Error decoding image", err)
+		return echo.ErrBadRequest
 	}
 
-	c.Logger().Info("Decoded image with format: " + format)
+	Info(sp, "Image format", format)
 
 	var resized_image = image
 
@@ -92,7 +113,8 @@ func resizeImage(c echo.Context, operation string) error {
 	} else if operation == "limit" {
 		resized_image = resize.Thumbnail(req.X, req.Y, image, resize.Lanczos3)
 	} else {
-		panic("Invalid operation, this cannot happen")
+		Error(sp, "Invalid operation", operation)
+		return echo.ErrInternalServerError
 	}
 
 	result_array := bytes.NewBuffer(make([]byte, 0))
@@ -107,18 +129,34 @@ func resizeImage(c echo.Context, operation string) error {
 	case "gif":
 		err = gif.Encode(result_array, resized_image, &gif.Options{})
 	default:
-		return fmt.Errorf("invalid format: %s", req.Format)
+		Error(sp, "Invalid format", req.Format)
+		return echo.ErrBadRequest
 	}
 
 	if err != nil {
-		return fmt.Errorf("error encoding image: %v", err.Error())
+		Error(sp, "Error encoding image", err)
+		return echo.ErrInternalServerError
 	}
 
-	b64_array := base64.StdEncoding.EncodeToString(result_array.Bytes())
 	new_x := uint(resized_image.Bounds().Dx())
 	new_y := uint(resized_image.Bounds().Dy())
 
-	return c.JSON(http.StatusOK, resizeRequest{Data: b64_array, Format: req.Format, X: new_x, Y: new_y})
+	id := uuid.New().String()
+
+	// save image to disk
+	file, err := os.Create("res/" + id)
+	if err != nil {
+		Error(sp, "Error creating file", err)
+		return echo.ErrInternalServerError
+	}
+
+	_, err = file.Write(result_array.Bytes())
+	if err != nil {
+		Error(sp, "Error writing file", err)
+		return echo.ErrInternalServerError
+	}
+
+	return c.JSON(http.StatusOK, ResizeResponse{Id: id, X: new_x, Y: new_y})
 }
 
 func customHTTPErrorHandler(err error, c echo.Context) {
@@ -130,4 +168,13 @@ func customHTTPErrorHandler(err error, c echo.Context) {
 	}
 	c.Logger().Error(err)
 	c.Echo().DefaultHTTPErrorHandler(err, c)
+}
+
+func Error(sp opentracing.Span, message string, err interface{}) {
+	sp.SetTag("error", true)
+	sp.LogKV("level", "ERROR", message, err)
+}
+
+func Info(sp opentracing.Span, message string, info interface{}) {
+	sp.LogKV("level", "INFO", message, info)
 }

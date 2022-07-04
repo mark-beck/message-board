@@ -34,6 +34,7 @@ services:
       - AUTH_PORT=8080
       - JAEGER_AGENT_HOST=tracing
       - JAEGER_AGENT_PORT=6831
+      - JAEGER_SERVICE_NAME=content_service
     volumes:
       - ./cert/jwt.public.pem:/etc/certs/jwt.public.pem:r
       - /etc/localtime:/etc/localtime
@@ -82,7 +83,10 @@ services:
         context: image_resizer
         dockerfile: Dockerfile
     environment:
-      PORT: 8015
+      - "PORT=8080"
+      - JAEGER_AGENT_HOST=tracing
+      - JAEGER_AGENT_PORT=6831
+      - JAEGER_SERVICE_NAME=resizer
 
   mongo:
     image: mongo:latest
@@ -98,7 +102,6 @@ services:
       ME_CONFIG_MONGODB_ADMINUSERNAME: admin
       ME_CONFIG_MONGODB_ADMINPASSWORD: admin
       ME_CONFIG_MONGODB_URL: mongodb://admin:admin@mongo:27017/
-    restart: on-failure
 
 
 

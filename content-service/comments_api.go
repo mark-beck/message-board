@@ -21,7 +21,14 @@ func (handler *Handler) get_comment(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest)
 	}
 
-	return c.JSON(200, comment)
+	filled_comment, err := fill_comment(c, comment)
+	if err != nil {
+		Error(sp, "Error filling comment", err)
+		c.Logger().Warnf("Error filling comment: %v\n", err)
+		return echo.NewHTTPError(http.StatusInternalServerError)
+	}
+
+	return c.JSON(200, filled_comment)
 }
 
 func (handler *Handler) get_all_comments(c echo.Context) error {
@@ -35,7 +42,14 @@ func (handler *Handler) get_all_comments(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError)
 	}
 
-	return c.JSON(200, comments)
+	filled_comments, err := fill_comments(c, comments)
+	if err != nil {
+		Error(sp, "Error filling comments", err)
+		c.Logger().Warnf("Error filling comments: %v\n", err)
+		return echo.NewHTTPError(http.StatusInternalServerError)
+	}
+
+	return c.JSON(200, filled_comments)
 }
 
 func (handler *Handler) add_comment(c echo.Context) error {
@@ -87,7 +101,14 @@ func (handler *Handler) filter_comments(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError)
 	}
 
-	return c.JSON(200, comments)
+	filled_comments, err := fill_comments(c, comments)
+	if err != nil {
+		Error(sp, "Error filling comments", err)
+		c.Logger().Warnf("Error filling comments: %v\n", err)
+		return echo.NewHTTPError(http.StatusInternalServerError)
+	}
+
+	return c.JSON(200, filled_comments)
 }
 
 func (handler *Handler) inject_comments(c echo.Context) error {
@@ -147,7 +168,7 @@ func (handler *Handler) delete_comment(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest)
 	}
 
-	user_info, err := handler.auth.get_info(c.Request().Header["Authorization"][0])
+	user_info, err := handler.auth.get_info(c, c.Request().Header["Authorization"][0])
 	if err != nil {
 		Error(sp, "Error retrieving user info", err)
 		c.Logger().Warnf("Error retrieving user info: %v\n", err)
@@ -170,4 +191,46 @@ func (handler *Handler) delete_comment(c echo.Context) error {
 	Info(sp, "Comment deleted", comment)
 	c.Logger().Infof("Deleted comment %v", id)
 	return c.String(200, "")
+}
+
+func fill_comment(ctx echo.Context, comment Comment) (FilledComment, error) {
+	sp := jaegertracing.CreateChildSpan(ctx, "fill_comment")
+	defer sp.Finish()
+
+	info, err := init_auth().get_user(ctx, comment.Author)
+	if err != nil {
+		return FilledComment{}, err
+	}
+
+	return FilledComment{&info, comment}, nil
+}
+
+// fill posts with author info
+func fill_comments(ctx echo.Context, comments []Comment) ([]FilledComment, error) {
+	sp := jaegertracing.CreateChildSpan(ctx, "fill_posts")
+	defer sp.Finish()
+
+	infos, err := init_auth().get_user_batch(ctx, get_ids_comment(comments))
+	if err != nil {
+		return nil, err
+	}
+
+	var filled_comments []FilledComment
+
+	for _, post := range comments {
+		info := find_user(infos, post.Author)
+		filled_comments = append(filled_comments, FilledComment{&info, post})
+	}
+
+	return filled_comments, nil
+}
+
+func get_ids_comment(posts []Comment) []string {
+	var ids []string
+
+	for _, post := range posts {
+		ids = append(ids, post.Author)
+	}
+
+	return ids
 }

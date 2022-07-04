@@ -1,7 +1,7 @@
 use crate::crypto::JwtIssuer;
 use crate::mongo::Mongo;
 use crate::schema::{
-    LoginRequest, RegisteringUser, Role, TokenResponse, User, UserClaims, UserInfo,
+    LoginRequest, RegisteringUser, Role, TokenResponse, UserClaims, UserInfo,
     UserInfoFull, UpdateRequestUser, UpdateRequestAdmin,
 };
 use actix_web::error::{Error, Result};
@@ -11,7 +11,7 @@ use actix_web::{error, web, HttpRequest, HttpResponse, Responder};
 use std::sync::Arc;
 
 use crate::api::middleware::get_jwt;
-use tracing::{info, trace, warn};
+use tracing::{info, trace, warn, debug};
 
 pub mod middleware;
 
@@ -155,8 +155,11 @@ impl UserApi {
     pub async fn info(
         mongo: Data<Arc<Mongo>>,
         claims: ReqData<UserClaims>,
+        req: HttpRequest,
     ) -> Result<Json<UserInfo>> {
         info!("user_id: {:?}", claims.user_id);
+
+        info!("headers: {:?}", req.headers());
 
         let user = mongo
             .get_user_from_id(&claims.user_id)
@@ -200,10 +203,14 @@ impl UserApi {
         let mut infos = Vec::new();
         for id in batch.0 {
             let user = mongo.get_user_from_id(&id).await;
-            if let Ok(user) = user {
-                infos.push(user.into());
+            match user {
+                Ok(user) => infos.push(user.into()),
+                Err(e) => {
+                    warn!("{}", e);
+                }
             }
         }
+        debug!("{:?}", infos);
         Ok(Json(infos))
     }
 

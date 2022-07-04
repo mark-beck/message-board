@@ -6,11 +6,11 @@ use actix_web::{web, App, HttpServer};
 use tracing_subscriber::util::SubscriberInitExt;
 use std::sync::Arc;
 use tracing::info;
-use tracing_actix_web::TracingLogger;
 use actix_web_httpauth::middleware::HttpAuthentication;
 use actix_cors::Cors;
 use tracing_subscriber::layer::SubscriberExt;
 use opentelemetry::global;
+use actix_web_opentelemetry::RequestTracing;
 
 mod api;
 mod config;
@@ -21,6 +21,7 @@ mod schema;
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
 
+    global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
     let tracer = opentelemetry_jaeger::new_pipeline()
         .with_service_name("auth-server")
         .with_agent_endpoint("tracing:6831")
@@ -43,7 +44,8 @@ async fn main() -> anyhow::Result<()> {
         App::new()
             .app_data(Data::new(mongo.clone()))
             .app_data(Data::new(jwt_issuer.clone()))
-            .wrap(TracingLogger::default())
+            .wrap(RequestTracing::new())
+            // .wrap(TracingLogger::default())
             .wrap(actix_web::middleware::NormalizePath::default())
             .wrap(Cors::permissive())
             .service(
@@ -68,8 +70,8 @@ async fn main() -> anyhow::Result<()> {
                             .route("/info", web::get().to(api::UserApi::info))
                             .route("/update", web::post().to(api::UserApi::update))
                             .route("/delete", web::delete().to(api::UserApi::delete))
+                            .route("/get_batch", web::post().to(api::UserApi::get_batch))
                             .route("/{id}", web::get().to(api::UserApi::get))
-                            .route("/get_batch", web::get().to(api::UserApi::get_batch))
                             .route("/email/{email}", web::get().to(api::UserApi::get_email)),
                     )
                     .route("/version", web::get().to(api::version))

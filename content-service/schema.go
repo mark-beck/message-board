@@ -5,10 +5,11 @@ import (
 )
 
 type (
-	UserClaims struct {
+	UserInfo struct {
+		Id    string   `json:"id"`
 		Name  string   `json:"name"`
-		Email string   `json:"email"`
 		Roles []string `json:"roles"`
+		Image string   `json:"image"`
 	}
 
 	Post struct {
@@ -17,6 +18,16 @@ type (
 		Date   string `json:"date" bson:"date"`
 		Id     string `json:"id" bson:"id"`
 		Image  string `json:"image" bson:"image"`
+	}
+
+	FilledPost struct {
+		AuthorInfo *UserInfo `json:"author_info"`
+		Post
+	}
+
+	FilledComment struct {
+		AuthorInfo *UserInfo `json:"author_info"`
+		Comment
 	}
 
 	Comment struct {

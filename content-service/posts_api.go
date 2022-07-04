@@ -17,10 +17,17 @@ func (handler *Handler) get_all_posts(c echo.Context) error {
 	if err != nil {
 		Error(sp, "Error retrieving documents", err)
 		c.Logger().Warnf("Error retrieving documents: %v\n", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error retrieving documents")
+		return echo.ErrInternalServerError
 	}
 
-	return c.JSON(http.StatusOK, posts)
+	filled, err := fill_posts(c, posts)
+	if err != nil {
+		Error(sp, "Error filling posts", err)
+		c.Logger().Warnf("Error filling posts: %v\n", err)
+		return echo.ErrInternalServerError
+	}
+
+	return c.JSON(http.StatusOK, filled)
 }
 
 func (handler *Handler) add_post(c echo.Context) error {
@@ -76,7 +83,14 @@ func (handler *Handler) filter_posts(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error retrieving documents")
 	}
 
-	return c.JSON(200, posts)
+	filled, err := fill_posts(c, posts)
+	if err != nil {
+		Error(sp, "Error filling posts", err)
+		c.Logger().Warnf("Error filling posts: %v\n", err)
+		return echo.ErrInternalServerError
+	}
+
+	return c.JSON(200, filled)
 }
 
 func (handler *Handler) inject_posts(c echo.Context) error {
@@ -139,16 +153,16 @@ func (handler *Handler) delete_post(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error retrieving document")
 	}
 
-	user_info, err := handler.auth.get_info(c.Request().Header["Authorization"][0])
+	user_info, err := handler.auth.get_info(c, c.Request().Header["Authorization"][0])
 	if err != nil {
 		Error(sp, "Error getting user info", err)
 		c.Logger().Warnf("Error retrieving user info: %v\n", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error retrieving user info")
 	}
 
-	if post.Author != user_info.Name && !user_info.isRole("admin") && !user_info.isRole("moderator") {
+	if post.Author != user_info.Name && !user_info.isRole("Admin") && !user_info.isRole("Moderator") {
 		Error(sp, "User is not authorized to delete post", user_info)
-		c.Logger().Warnf("User %v is not authorized to delete post %v", user_info.Email, id)
+		c.Logger().Warnf("User %v is not authorized to delete post %v", user_info.Name, id)
 		return echo.NewHTTPError(http.StatusUnauthorized, "User is not authorized to delete post")
 	}
 
@@ -162,4 +176,44 @@ func (handler *Handler) delete_post(c echo.Context) error {
 	Info(sp, "Deleted", id)
 	c.Logger().Infof("Deleted %v", id)
 	return c.String(http.StatusAccepted, "")
+}
+
+// fill posts with author info
+func fill_posts(ctx echo.Context, posts []Post) ([]FilledPost, error) {
+	sp := jaegertracing.CreateChildSpan(ctx, "fill_posts")
+	defer sp.Finish()
+
+	infos, err := init_auth().get_user_batch(ctx, get_ids_post(posts))
+	if err != nil {
+		return nil, err
+	}
+
+	var filled_posts []FilledPost
+
+	for _, post := range posts {
+		info := find_user(infos, post.Author)
+		filled_posts = append(filled_posts, FilledPost{&info, post})
+	}
+
+	return filled_posts, nil
+}
+
+func get_ids_post(posts []Post) []string {
+	var ids []string
+
+	for _, post := range posts {
+		ids = append(ids, post.Author)
+	}
+
+	return ids
+}
+
+func find_user(infos []UserInfo, id string) UserInfo {
+	for _, info := range infos {
+		if info.Id == id {
+			return info
+		}
+	}
+
+	return UserInfo{}
 }
