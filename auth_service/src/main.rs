@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::crypto::JwtIssuer;
 use crate::api::middleware;
+use crate::image_service::ImageService;
 use actix_web::web::Data;
 use actix_web::{web, App, HttpServer};
 use tracing_subscriber::util::SubscriberInitExt;
@@ -11,12 +12,14 @@ use actix_cors::Cors;
 use tracing_subscriber::layer::SubscriberExt;
 use opentelemetry::global;
 use actix_web_opentelemetry::RequestTracing;
+use tracing_actix_web::TracingLogger;
 
 mod api;
 mod config;
 mod crypto;
 mod mongo;
 mod schema;
+mod image_service;
 
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
@@ -32,11 +35,13 @@ async fn main() -> anyhow::Result<()> {
         .with(opentelemetry)
         .try_init()?;
 
-    let config = Config::parse("auth_config.toml").expect("parsing failed");
+    let config = Config::from_env()?;
 
     let mongo = Arc::new(mongo::Mongo::from_config(config.clone()).await?);
 
     let jwt_issuer = Arc::new(JwtIssuer::new(config.clone()).await?);
+
+    let image_service = ImageService::new(config.image_service.clone());
 
     info!("starting auth_service on port 8080");
 
@@ -44,8 +49,8 @@ async fn main() -> anyhow::Result<()> {
         App::new()
             .app_data(Data::new(mongo.clone()))
             .app_data(Data::new(jwt_issuer.clone()))
+            .app_data(Data::new(image_service.clone()))
             .wrap(RequestTracing::new())
-            // .wrap(TracingLogger::default())
             .wrap(actix_web::middleware::NormalizePath::default())
             .wrap(Cors::permissive())
             .service(

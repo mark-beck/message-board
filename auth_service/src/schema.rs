@@ -1,11 +1,12 @@
-use crate::crypto;
+use crate::{crypto, image_service::ImageService};
 use actix_web::web::Json;
-use time::{Duration, OffsetDateTime};
+use anyhow::Result;
+use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use sodiumoxide::crypto::pwhash::argon2id13::HashedPassword;
 use std::ops::Add;
+use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
-use derivative::Derivative;
 
 #[derive(Copy, Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum Role {
@@ -37,23 +38,29 @@ pub struct TokenResponse {
 #[derivative(Debug)]
 pub struct RegisteringUser {
     pub(crate) name: String,
-    #[derivative(Debug="ignore")]
+    #[derivative(Debug = "ignore")]
     pub(crate) password: String,
     pub(crate) email: String,
-    #[derivative(Debug="ignore")]
+    #[derivative(Debug = "ignore")]
     pub(crate) image: Option<String>,
 }
 
 impl RegisteringUser {
-    pub fn add_roles(self, roles: Vec<Role>) -> User {
-        User {
-            id : Uuid::new_v4().to_string(),
+    pub async fn into_user(self, image_service: &ImageService, roles: Vec<Role>) -> Result<User> {
+        let image_id = if let Some(image) = self.image {
+            Some(image_service.upload_image(image).await?)
+        } else {
+            None
+        };
+
+        Ok(User {
+            id: Uuid::new_v4().to_string(),
             name: self.name,
             password: self.password,
             email: self.email,
             roles,
-            image: self.image,
-        }
+            image: image_id,
+        })
     }
 }
 
@@ -68,7 +75,9 @@ pub struct UserClaims {
 impl From<UserWithHash> for UserClaims {
     fn from(uh: UserWithHash) -> Self {
         UserClaims {
-            exp: OffsetDateTime::now_utc().add(Duration::hours(1)).unix_timestamp(),
+            exp: OffsetDateTime::now_utc()
+                .add(Duration::hours(1))
+                .unix_timestamp(),
             nbf: OffsetDateTime::now_utc().unix_timestamp(),
             sub: uh.name.clone(),
             user_id: uh.id,
@@ -81,11 +90,11 @@ impl From<UserWithHash> for UserClaims {
 pub struct UserWithHash {
     pub id: String,
     pub name: String,
-    #[derivative(Debug="ignore")]
+    #[derivative(Debug = "ignore")]
     pub hash: HashedPassword,
     pub email: String,
     pub roles: Vec<Role>,
-    #[derivative(Debug="ignore")]
+    #[derivative(Debug = "ignore")]
     pub image: Option<String>,
 }
 
@@ -108,7 +117,7 @@ pub struct UserInfo {
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) roles: Vec<Role>,
-    #[derivative(Debug="ignore")]
+    #[derivative(Debug = "ignore")]
     pub(crate) image: Option<String>,
 }
 
@@ -130,7 +139,7 @@ pub struct UserInfoFull {
     pub name: String,
     pub email: String,
     pub roles: Vec<Role>,
-    #[derivative(Debug="ignore")]
+    #[derivative(Debug = "ignore")]
     pub image: Option<String>,
 }
 
@@ -151,11 +160,11 @@ impl From<UserWithHash> for UserInfoFull {
 pub struct User {
     pub id: String,
     pub name: String,
-    #[derivative(Debug="ignore")]
+    #[derivative(Debug = "ignore")]
     pub password: String,
     pub email: String,
     pub roles: Vec<Role>,
-    #[derivative(Debug="ignore")]
+    #[derivative(Debug = "ignore")]
     pub image: Option<String>,
 }
 
@@ -163,7 +172,7 @@ pub struct User {
 #[derivative(Debug)]
 pub struct LoginRequest {
     pub email: String,
-    #[derivative(Debug="ignore")]
+    #[derivative(Debug = "ignore")]
     pub password: String,
 }
 
@@ -172,9 +181,9 @@ pub struct LoginRequest {
 pub struct UpdateRequestUser {
     pub name: Option<String>,
     pub email: Option<String>,
-    #[derivative(Debug="ignore")]
+    #[derivative(Debug = "ignore")]
     pub password: Option<String>,
-    #[derivative(Debug="ignore")]
+    #[derivative(Debug = "ignore")]
     pub image: Option<String>,
 }
 
@@ -183,9 +192,9 @@ pub struct UpdateRequestUser {
 pub struct UpdateRequestAdmin {
     pub name: Option<String>,
     pub email: Option<String>,
-    #[derivative(Debug="ignore")]
+    #[derivative(Debug = "ignore")]
     pub password: Option<String>,
-    #[derivative(Debug="ignore")]
+    #[derivative(Debug = "ignore")]
     pub image: Option<String>,
     pub roles: Option<Vec<Role>>,
 }

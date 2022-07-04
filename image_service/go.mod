@@ -1,4 +1,4 @@
-module image_resizer
+module image_service
 
 go 1.18
 

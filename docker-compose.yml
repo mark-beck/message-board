@@ -57,7 +57,16 @@ services:
     depends_on:
       - mongo
     environment:
-      RUST_BACKTRACE: 1
+      - IMAGE_SERVICE_URL=image_service:8080
+      - DB_ADDRESS=mongo
+      - DB_PORT=27017
+      - DB_USER=admin
+      - DB_PASSWORD=admin
+      - DEFAULT_USER=admin
+      - DEFAULT_PASSWORD=admin
+      - CREATE_DEFAULT_USER=true
+      - JWT_PRIVATE_PATH=./cert/jwt.private.pem
+      - JWT_PUBLIC_PATH=./cert/jwt.public.pem
     labels:
       - "traefik.http.routers.auth.rule=Host(`localhost`) && (PathPrefix(`/auth`) || PathPrefix(`/admin`))"
       - "traefik.http.services.auth.loadbalancer.server.scheme=http"
@@ -77,16 +86,22 @@ services:
       - "traefik.http.routers.panel.entrypoints=websecure"
       - "traefik.http.routers.panel.tls=true"
 
-  resizer:
-    image: resizer:latest
+  image_service:
+    image: image_service:latest
     build: 
-        context: image_resizer
+        context: image_service
         dockerfile: Dockerfile
     environment:
       - "PORT=8080"
       - JAEGER_AGENT_HOST=tracing
       - JAEGER_AGENT_PORT=6831
-      - JAEGER_SERVICE_NAME=resizer
+      - JAEGER_SERVICE_NAME=image_service
+    labels:
+      - "traefik.http.routers.image_service.rule=Host(`localhost`) && PathPrefix(`/image`)"
+      - "traefik.http.services.image_service.loadbalancer.server.scheme=http"
+      - "traefik.http.services.image_service.loadbalancer.server.port=8080"
+      - "traefik.http.routers.image_service.entrypoints=websecure"
+      - "traefik.http.routers.image_service.tls=true"
 
   mongo:
     image: mongo:latest

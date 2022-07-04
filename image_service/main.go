@@ -21,6 +21,14 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
+type UploadRequest struct {
+	Data string `json:"data"`
+}
+
+type UploadResponse struct {
+	Id string `json:"id"`
+}
+
 type resizeRequest struct {
 	Data   string `json:"data" form:"data" query:"data" validate:"required"`
 	X      uint   `json:"x" form:"x" query:"x" validate:"required"`
@@ -46,21 +54,78 @@ func main() {
 	// Hide banner
 	e.HideBanner = true
 
+	e.Use(middleware.Logger())
 	c := jaegertracing.New(e, nil)
 	defer c.Close()
 
 	// Setup logging
 	e.Logger.SetLevel(log.INFO)
 	e.Logger.SetOutput(os.Stdout)
-	e.Use(middleware.Logger())
+
 	e.HTTPErrorHandler = customHTTPErrorHandler
 
+	e.POST("/upload", uploadImage)
 	e.GET("/scale", scaleImage)
 	e.POST("/scale", scaleImage)
 	e.GET("/limit", limitImage)
 	e.POST("/limit", limitImage)
 	e.Static("/image", "res")
 	e.Logger.Fatal(e.Start(fmt.Sprint(":", port)))
+}
+
+func uploadImage(c echo.Context) error {
+	sp := jaegertracing.CreateChildSpan(c, "uploadImage")
+	defer sp.Finish()
+
+	// bind request to UploadRequest struct
+	req := new(UploadRequest)
+	if err := c.Bind(req); err != nil {
+		Error(sp, "Error binding request", err)
+		return echo.ErrBadRequest
+	}
+
+	// decode base64 string
+	data, err := base64.StdEncoding.DecodeString(req.Data)
+	if err != nil {
+		Error(sp, "Error decoding base64 string", err)
+		return echo.ErrBadRequest
+	}
+
+	reader := bytes.NewReader(data)
+	// create image from decoded data
+	image, format, err := image.Decode(reader)
+	if err != nil {
+		Error(sp, "Error decoding image", err)
+		return echo.ErrBadRequest
+	}
+
+	resized_image := resize.Thumbnail(600, 600, image, resize.Lanczos3)
+
+	Info(sp, "Image format", format)
+
+	result_array := bytes.NewBuffer(make([]byte, 0))
+	err = webp.Encode(result_array, resized_image, &webp.Options{Lossless: true})
+	if err != nil {
+		Error(sp, "Error encoding image", err)
+		return echo.ErrBadRequest
+	}
+
+	id := uuid.New().String()
+
+	// save image to disk
+	file, err := os.Create(id)
+	if err != nil {
+		Error(sp, "Error creating file", err)
+		return echo.ErrInternalServerError
+	}
+
+	_, err = file.Write(result_array.Bytes())
+	if err != nil {
+		Error(sp, "Error writing file", err)
+		return echo.ErrInternalServerError
+	}
+
+	return c.JSON(http.StatusOK, UploadResponse{Id: id})
 }
 
 func scaleImage(c echo.Context) error {

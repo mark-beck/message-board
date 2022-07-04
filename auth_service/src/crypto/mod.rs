@@ -1,12 +1,12 @@
 use crate::config::Config;
-use crate::config::Secret::{KeyPair, Pass};
+use crate::config::JwtSecret::{KeyPair, Pass};
+use crate::mongo::Mongo;
 use crate::schema::{Role, UserClaims};
 use anyhow::{anyhow, Result};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use sodiumoxide::crypto::pwhash::argon2id13;
-use tracing::trace;
 use std::sync::Arc;
-use crate::mongo::Mongo;
+use tracing::trace;
 
 #[derive(Clone)]
 pub struct JwtIssuer {
@@ -18,25 +18,24 @@ pub struct JwtIssuer {
 
 impl JwtIssuer {
     pub async fn new(config: Config) -> Result<Self> {
-        let r = match &config.jwt_config.secret {
-            Some(Pass(p)) => Self {
+        let r = match &config.jwt_config {
+            Pass(p) => Self {
                 header: Header::new(Algorithm::HS256),
                 encoding_key: EncodingKey::from_secret(p.as_bytes()),
                 validation: Validation::default(),
                 config,
             },
-            Some(KeyPair(private, _public)) => Self {
+            KeyPair { private, public: _ } => Self {
                 header: Header::new(Algorithm::ES256),
                 encoding_key: EncodingKey::from_ec_pem(private)?,
                 validation: Validation::new(Algorithm::ES256),
                 config,
             },
-            None => panic!("server kaputt")
         };
         Ok(r)
     }
 
-    #[tracing::instrument(level="trace", skip(self, user))]
+    #[tracing::instrument(level = "trace", skip(self, user))]
     pub fn issue<T>(&self, user: T) -> Result<String>
     where
         T: Into<UserClaims>,
@@ -49,28 +48,27 @@ impl JwtIssuer {
     //     self.issue(self.decode(jwt).await?)
     // }
 
-    #[tracing::instrument(level="trace", skip(self))]
+    #[tracing::instrument(level = "trace", skip(self))]
     pub async fn decode(&self, jwt: &str) -> Result<UserClaims> {
         let header = jsonwebtoken::decode_header(jwt)?;
         if header != self.header {
             return Err(anyhow!("header does not match"));
         }
-        match &self.config.jwt_config.secret {
-            Some(Pass(p)) => decode::<UserClaims>(
+        match &self.config.jwt_config {
+            Pass(p) => decode::<UserClaims>(
                 jwt,
                 &DecodingKey::from_secret(p.as_bytes()),
                 &self.validation,
             ),
-            Some(KeyPair(_private, public)) => {
+            KeyPair { private: _, public } => {
                 decode::<UserClaims>(jwt, &DecodingKey::from_ec_pem(public)?, &self.validation)
             }
-            None => panic!("server kaputt")
         }
         .map(|ts| ts.claims)
         .map_err(Into::into)
     }
 
-    #[tracing::instrument(level="trace", skip(self, mongo))]
+    #[tracing::instrument(level = "trace", skip(self, mongo))]
     pub async fn validate_level(&self, mongo: &Arc<Mongo>, jwt: &str, level: Role) -> bool {
         trace!("validating level {:?}", level);
         if let Ok(claims) = self.decode(jwt).await {
@@ -81,14 +79,13 @@ impl JwtIssuer {
                 Err(_) => return false,
             };
 
-
             return user.roles.contains(&level);
         }
         false
     }
 }
 
-#[tracing::instrument(level="trace", skip(passwd))]
+#[tracing::instrument(level = "trace", skip(passwd))]
 pub fn hash(passwd: &str) -> argon2id13::HashedPassword {
     sodiumoxide::init().unwrap();
     argon2id13::pwhash(
@@ -99,7 +96,7 @@ pub fn hash(passwd: &str) -> argon2id13::HashedPassword {
     .unwrap()
 }
 
-#[tracing::instrument(level="trace", skip(hash, passwd))]
+#[tracing::instrument(level = "trace", skip(hash, passwd))]
 pub fn verify(hash: [u8; 128], passwd: &str) -> bool {
     sodiumoxide::init().unwrap();
     match argon2id13::HashedPassword::from_slice(&hash) {
