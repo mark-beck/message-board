@@ -23,7 +23,7 @@ async fn main() -> anyhow::Result<()> {
 
     global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
     let tracer = opentelemetry_jaeger::new_pipeline()
-        .with_service_name("auth-server")
+        .with_service_name("auth-service")
         .with_agent_endpoint("tracing:6831")
         .install_simple()?;
 
@@ -38,7 +38,7 @@ async fn main() -> anyhow::Result<()> {
 
     let jwt_issuer = Arc::new(JwtIssuer::new(config.clone()).await?);
 
-    info!("starting HTTP server");
+    info!("starting auth_service on port 8080");
 
     HttpServer::new(move || {
         App::new()
